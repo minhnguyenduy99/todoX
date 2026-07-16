@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+*.log
+.DS_Store
+*.tsbuildinfo
+apps/backend/prisma/migrations/**/migration_lock.toml
