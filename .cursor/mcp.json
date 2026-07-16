@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "todo-platform": {
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}

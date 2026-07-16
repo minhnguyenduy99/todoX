@@ -255,19 +255,42 @@ async function startStdio(): Promise<void> {
 
 async function startHttp(): Promise<void> {
   const httpServer = createServer(async (req, res) => {
-    if (req.url === '/health') {
+    const url = new URL(req.url ?? '/', `http://localhost:${env.MCP_PORT}`);
+
+    if (url.pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok' }));
       return;
     }
 
-    if (req.url === '/mcp' && req.method === 'POST') {
+    if (url.pathname === '/mcp') {
       const server = createMcpServer();
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
+        enableJsonResponse: true,
       });
-      await server.connect(transport);
-      await transport.handleRequest(req, res);
+
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res);
+
+        res.on('close', () => {
+          void transport.close();
+          void server.close();
+        });
+      } catch (error) {
+        console.error('Error handling MCP request:', error);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32603, message: 'Internal server error' },
+              id: null,
+            }),
+          );
+        }
+      }
       return;
     }
 

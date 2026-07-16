@@ -96,27 +96,59 @@ npm run start:dev --workspace=@todo-platform/mcp-server
 
 ## MCP Server Configuration
 
-### Cursor / Claude Desktop (stdio)
+Cursor reads MCP config from `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global).
 
-Add to your MCP config:
+### Docker Compose (recommended)
+
+When you run `docker compose up`, the MCP server is already running on **HTTP port 3001**. You do **not** need a local `node` path or a built `dist/` folder.
+
+Use this config in `.cursor/mcp.json` or your global MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "todo-platform": {
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+Requirements:
+1. `docker compose up` is running (backend on 3000, mcp-server on 3001)
+2. Reload Cursor after saving the config (or toggle the server in **Customize → MCP**)
+
+A ready-to-use project config is included at `.cursor/mcp.json`.
+
+### Local stdio (without Docker MCP container)
+
+Use this if you run the backend via Docker but want Cursor to spawn the MCP process locally:
+
+```bash
+npm install
+npm run build --workspace=@todo-platform/shared-types
+npm run build --workspace=@todo-platform/shared-api
+npm run build --workspace=@todo-platform/mcp-server
+```
 
 ```json
 {
   "mcpServers": {
     "todo-platform": {
       "command": "node",
-      "args": ["/path/to/todo-platform/apps/mcp-server/dist/index.js"],
+      "args": ["${workspaceFolder}/apps/mcp-server/dist/index.js"],
       "env": {
-        "BACKEND_URL": "http://localhost:3000"
+        "BACKEND_URL": "http://localhost:3000",
+        "MCP_TRANSPORT": "stdio"
       }
     }
   }
 }
 ```
 
-### HTTP Transport (Docker)
+`${workspaceFolder}` resolves to your project root automatically — do **not** use `/path/to/todo-platform/`.
 
-The Docker deployment exposes the MCP server at `http://localhost:3001/mcp`.
+See `mcp-config.example.json` for both Docker and local examples.
 
 ## MCP Tools
 
