@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TodoStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+}
+
+enum SubtaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum MonitorType {
+  http
+  github_pr
+  deployment
+}
+
+model Todo {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TodoStatus @default(TODO)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  subtasks    Subtask[]
+
+  @@map("todos")
+}
+
+model Subtask {
+  id        String        @id @default(uuid())
+  todoId    String
+  name      String
+  status    SubtaskStatus @default(NOT_STARTED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  todo      Todo          @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  monitor   Monitor?
+
+  @@index([todoId])
+  @@map("subtasks")
+}
+
+model Monitor {
+  id         String      @id @default(uuid())
+  subtaskId  String      @unique
+  type       MonitorType
+  cron       String
+  enabled    Boolean     @default(true)
+  config     Json
+  lastRunAt  DateTime?
+  nextRunAt  DateTime?
+  lastResult Json?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  subtask    Subtask     @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+
+  @@map("monitors")
+}

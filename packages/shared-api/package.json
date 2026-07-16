@@ -1,0 +1,17 @@
+{
+  "name": "@todo-platform/shared-api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@todo-platform/shared-types": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
