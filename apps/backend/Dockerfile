@@ -13,10 +13,10 @@ COPY packages/ ./packages/
 COPY apps/backend/ ./apps/backend/
 COPY tsconfig.base.json ./
 
-RUN npm run build --workspace=@todo-platform/shared-types
-RUN npm run build --workspace=@todo-platform/shared-api
-RUN npm run prisma:generate --workspace=@todo-platform/backend
-RUN npm run build --workspace=@todo-platform/backend
+RUN npm run build --workspace=@todo-platform/shared-types \
+ && npm run build --workspace=@todo-platform/shared-api \
+ && npm run prisma:generate --workspace=@todo-platform/backend \
+ && npm run build --workspace=@todo-platform/backend
 
 FROM node:20-alpine AS runner
 
@@ -40,7 +40,10 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 WORKDIR /app/apps/backend
 
+COPY apps/backend/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 ENV RUN_MIGRATIONS=true
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
