@@ -6,6 +6,7 @@ interface TodoCardProps {
   compact?: boolean;
   showSubtasks?: boolean;
   showSubtaskCount?: boolean;
+  showStatus?: boolean;
   onClick?: () => void;
 }
 
@@ -14,6 +15,7 @@ export function TodoCard({
   compact = false,
   showSubtasks = true,
   showSubtaskCount = false,
+  showStatus = true,
   onClick,
 }: TodoCardProps) {
   const subtasks = todo.subtasks ?? [];
@@ -48,7 +50,9 @@ export function TodoCard({
             </div>
           )}
         </div>
-        <span className={`badge ${todoStatusColor(todo.status)}`}>{todo.status}</span>
+        {showStatus && (
+          <span className={`badge ${todoStatusColor(todo.status)}`}>{todo.status}</span>
+        )}
       </div>
 
       {showSubtasks && subtasks.length > 0 && (

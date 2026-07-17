@@ -1,6 +1,11 @@
 import type { TodoDto } from '@todo-platform/shared-types';
 import { TodoCard } from './TodoCard';
-import { groupTodosByStatus, todoStatusLabel, TODO_STATUS_ORDER } from '../utils/statusUtils';
+import {
+  groupTodosByStatus,
+  todoStatusClassName,
+  todoStatusLabel,
+  TODO_STATUS_ORDER,
+} from '../utils/statusUtils';
 
 interface TodoListViewProps {
   todos: TodoDto[];
@@ -17,7 +22,7 @@ export function TodoListView({ todos }: TodoListViewProps) {
 
         return (
           <section key={status} className="status-group">
-            <div className="status-group-header">
+            <div className={`status-group-header ${todoStatusClassName(status)}`}>
               <h2 className="status-group-title">{todoStatusLabel(status)}</h2>
               <span className="status-group-count">{items.length}</span>
             </div>
