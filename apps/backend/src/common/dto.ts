@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -14,6 +15,7 @@ import {
   SubtaskStatus,
   TodoStatus,
 } from '@todo-platform/shared-types';
+import { AssociatedPullRequestBody } from './pull-request.dto';
 
 export class CreateTodoBody {
   @ApiProperty()
@@ -30,6 +32,13 @@ export class CreateTodoBody {
   @IsOptional()
   @IsEnum(TodoStatus)
   status?: TodoStatus;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
 }
 
 export class UpdateTodoBody {
@@ -48,6 +57,13 @@ export class UpdateTodoBody {
   @IsOptional()
   @IsEnum(TodoStatus)
   status?: TodoStatus;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
 }
 
 export class CreateSubtaskMonitorBody {
@@ -109,6 +125,13 @@ export class CreateSubtaskBody {
   @ValidateNested()
   @Type(() => CreateSubtaskMonitorBody)
   monitor?: CreateSubtaskMonitorBody;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
 }
 
 export class UpdateSubtaskBody {
@@ -128,6 +151,13 @@ export class UpdateSubtaskBody {
   @ValidateNested()
   @Type(() => UpdateSubtaskMonitorBody)
   monitor?: UpdateSubtaskMonitorBody;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
 }
 
 export class CreateMonitorBody {

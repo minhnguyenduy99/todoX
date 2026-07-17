@@ -3,12 +3,13 @@ import {
   MonitorType,
   SubtaskStatus,
   TodoStatus,
+  type AssociatedPullRequestDto,
   type MonitorDto,
   type MonitorResult,
   type SubtaskDto,
   type TodoDto,
 } from '@todo-platform/shared-types';
-import type { Monitor, Subtask, Todo } from '@prisma/client';
+import type { AssociatedPullRequest, Monitor, Subtask, Todo } from '@prisma/client';
 
 export function toMonitorResult(value: unknown): MonitorResult | null {
   if (!value || typeof value !== 'object') return null;
@@ -42,8 +43,25 @@ export function toMonitorDto(monitor: Monitor): MonitorDto {
   };
 }
 
+export function toAssociatedPullRequestDto(
+  pr: AssociatedPullRequest,
+): AssociatedPullRequestDto {
+  return {
+    id: pr.id,
+    number: pr.number,
+    title: pr.title,
+    status: pr.status,
+    url: pr.url,
+    createdAt: pr.createdAt.toISOString(),
+    updatedAt: pr.updatedAt.toISOString(),
+  };
+}
+
 export function toSubtaskDto(
-  subtask: Subtask & { monitor?: Monitor | null },
+  subtask: Subtask & {
+    monitor?: Monitor | null;
+    pullRequests?: AssociatedPullRequest[];
+  },
 ): SubtaskDto {
   return {
     id: subtask.id,
@@ -53,11 +71,18 @@ export function toSubtaskDto(
     createdAt: subtask.createdAt.toISOString(),
     updatedAt: subtask.updatedAt.toISOString(),
     monitor: subtask.monitor ? toMonitorDto(subtask.monitor) : null,
+    pullRequests: subtask.pullRequests?.map(toAssociatedPullRequestDto),
   };
 }
 
 export function toTodoDto(
-  todo: Todo & { subtasks?: (Subtask & { monitor?: Monitor | null })[] },
+  todo: Todo & {
+    subtasks?: (Subtask & {
+      monitor?: Monitor | null;
+      pullRequests?: AssociatedPullRequest[];
+    })[];
+    pullRequests?: AssociatedPullRequest[];
+  },
 ): TodoDto {
   return {
     id: todo.id,
@@ -67,5 +92,6 @@ export function toTodoDto(
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
     subtasks: todo.subtasks?.map(toSubtaskDto),
+    pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),
   };
 }

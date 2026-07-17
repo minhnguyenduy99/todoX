@@ -66,6 +66,65 @@ describe('Todos API (integration)', () => {
     expect(response.body).toHaveProperty('services');
   });
 
+  it('POST /todos creates a todo with associated pull requests', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Feature work',
+        pullRequests: [
+          {
+            number: 42,
+            title: 'Add feature X',
+            status: 'open',
+            url: 'https://github.com/org/repo/pull/42',
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.pullRequests).toHaveLength(1);
+    expect(response.body.pullRequests[0]).toMatchObject({
+      number: 42,
+      title: 'Add feature X',
+      status: 'open',
+      url: 'https://github.com/org/repo/pull/42',
+    });
+  });
+
+  it('PATCH /todos/:id replaces associated pull requests', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'PR todo',
+        pullRequests: [
+          {
+            number: 1,
+            title: 'First PR',
+            status: 'open',
+            url: 'https://github.com/org/repo/pull/1',
+          },
+        ],
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${createRes.body.id}`)
+      .send({
+        pullRequests: [
+          {
+            number: 2,
+            title: 'Second PR',
+            status: 'merged',
+            url: 'https://github.com/org/repo/pull/2',
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(updateRes.body.pullRequests).toHaveLength(1);
+    expect(updateRes.body.pullRequests[0].number).toBe(2);
+  });
+
   it('POST /todos/:todoId/subtasks creates a subtask with an optional monitor', async () => {
     const todoRes = await request(app.getHttpServer())
       .post('/todos')
@@ -90,5 +149,30 @@ describe('Todos API (integration)', () => {
       cron: '*/5 * * * *',
       enabled: true,
     });
+  });
+
+  it('POST /todos/:todoId/subtasks creates a subtask with associated pull requests', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({ title: 'Todo with PR subtask' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/subtasks`)
+      .send({
+        name: 'Review PR',
+        pullRequests: [
+          {
+            number: 99,
+            title: 'Fix bug',
+            status: 'open',
+            url: 'https://github.com/org/repo/pull/99',
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.pullRequests).toHaveLength(1);
+    expect(response.body.pullRequests[0].number).toBe(99);
   });
 });

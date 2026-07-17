@@ -1,5 +1,6 @@
 import type { TodoDto } from '@todo-platform/shared-types';
 import { todoStatusColor, subtaskStatusColor } from '../api';
+import { PullRequestList } from './PullRequestList';
 
 interface TodoCardProps {
   todo: TodoDto;
@@ -41,6 +42,10 @@ export function TodoCard({
       <div className="todo-header">
         <div className="todo-header-content">
           <div className="todo-title">{todo.title}</div>
+          <PullRequestList
+            pullRequests={todo.pullRequests ?? []}
+            compact={compact}
+          />
           {todo.description && (
             <div className="todo-description">{todo.description}</div>
           )}
@@ -61,7 +66,10 @@ export function TodoCard({
           <ul className="subtask-list">
             {subtasks.map((subtask) => (
               <li key={subtask.id} className="subtask-item">
-                <span className="subtask-name">{subtask.name}</span>
+                <div className="subtask-item-content">
+                  <span className="subtask-name">{subtask.name}</span>
+                  <PullRequestList pullRequests={subtask.pullRequests ?? []} />
+                </div>
                 <span className={`badge ${subtaskStatusColor(subtask.status)}`}>
                   {subtask.status}
                 </span>

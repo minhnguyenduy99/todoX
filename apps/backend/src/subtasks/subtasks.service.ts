@@ -2,12 +2,20 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
+import { syncPullRequests } from '../common/pull-requests';
 import { toSubtaskDto } from '../common/mappers';
 import type {
   CreateSubtaskDto,
   SubtaskDto,
   UpdateSubtaskDto,
 } from '@todo-platform/shared-types';
+
+const subtaskInclude = {
+  monitor: true,
+  pullRequests: {
+    orderBy: { number: 'asc' as const },
+  },
+};
 
 @Injectable()
 export class SubtasksService {
@@ -21,21 +29,23 @@ export class SubtasksService {
     const todo = await this.prisma.todo.findUnique({ where: { id: todoId } });
     if (!todo) throw new NotFoundException(`Todo ${todoId} not found`);
 
+    const { monitor, pullRequests, ...subtaskData } = dto;
     const subtask = await this.prisma.subtask.create({
       data: {
         todoId,
-        name: dto.name,
-        status: dto.status,
+        ...subtaskData,
       },
     });
 
-    if (dto.monitor) {
-      await this.monitorsService.create(subtask.id, dto.monitor, { silent: true });
+    if (monitor) {
+      await this.monitorsService.create(subtask.id, monitor, { silent: true });
     }
+
+    await syncPullRequests(this.prisma, { subtaskId: subtask.id }, pullRequests);
 
     const full = await this.prisma.subtask.findUnique({
       where: { id: subtask.id },
-      include: { monitor: true },
+      include: subtaskInclude,
     });
 
     const result = toSubtaskDto(full!);
@@ -50,7 +60,7 @@ export class SubtasksService {
   ): Promise<SubtaskDto> {
     await this.ensureExists(todoId, subtaskId);
 
-    const { monitor, ...subtaskData } = dto;
+    const { monitor, pullRequests, ...subtaskData } = dto;
 
     await this.prisma.subtask.update({
       where: { id: subtaskId },
@@ -83,9 +93,11 @@ export class SubtasksService {
       }
     }
 
+    await syncPullRequests(this.prisma, { subtaskId }, pullRequests);
+
     const subtask = await this.prisma.subtask.findUnique({
       where: { id: subtaskId },
-      include: { monitor: true },
+      include: subtaskInclude,
     });
 
     const result = toSubtaskDto(subtask!);
