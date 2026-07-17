@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { TodoDto } from '@todo-platform/shared-types';
 import { subtaskStatusColor } from '../api';
+import { PullRequestList } from './PullRequestList';
 
 interface SubtaskPanelProps {
   todo: TodoDto;
@@ -31,6 +32,7 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
             <h2 id="subtask-panel-title" className="subtask-panel-title">
               {todo.title}
             </h2>
+            <PullRequestList pullRequests={todo.pullRequests ?? []} />
             {todo.description && (
               <p className="subtask-panel-description">{todo.description}</p>
             )}
@@ -46,7 +48,10 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
           <ul className="subtask-list">
             {subtasks.map((subtask) => (
               <li key={subtask.id} className="subtask-item">
-                <span className="subtask-name">{subtask.name}</span>
+                <div className="subtask-item-content">
+                  <span className="subtask-name">{subtask.name}</span>
+                  <PullRequestList pullRequests={subtask.pullRequests ?? []} />
+                </div>
                 <span className={`badge ${subtaskStatusColor(subtask.status)}`}>
                   {subtask.status}
                 </span>

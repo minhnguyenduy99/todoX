@@ -30,29 +30,49 @@ enum MonitorType {
 }
 
 model Todo {
-  id          String     @id @default(uuid())
-  title       String
-  description String?
-  status      TodoStatus @default(TODO)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  subtasks    Subtask[]
+  id           String                  @id @default(uuid())
+  title        String
+  description  String?
+  status       TodoStatus              @default(TODO)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  subtasks     Subtask[]
+  pullRequests AssociatedPullRequest[]
 
   @@map("todos")
 }
 
 model Subtask {
-  id        String        @id @default(uuid())
-  todoId    String
-  name      String
-  status    SubtaskStatus @default(NOT_STARTED)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  todo      Todo          @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  monitor   Monitor?
+  id           String                  @id @default(uuid())
+  todoId       String
+  name         String
+  status       SubtaskStatus           @default(NOT_STARTED)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  todo         Todo                    @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  monitor      Monitor?
+  pullRequests AssociatedPullRequest[]
 
   @@index([todoId])
   @@map("subtasks")
+}
+
+model AssociatedPullRequest {
+  id        String   @id @default(uuid())
+  number    Int
+  title     String
+  status    String
+  url       String
+  todoId    String?
+  subtaskId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  todo      Todo?    @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  subtask   Subtask? @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+
+  @@index([todoId])
+  @@index([subtaskId])
+  @@map("associated_pull_requests")
 }
 
 model Monitor {

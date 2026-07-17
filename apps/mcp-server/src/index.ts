@@ -13,12 +13,28 @@ import {
   TodoStatus,
   type CreateSubtaskDto,
   type UpdateSubtaskDto,
+  type AssociatedPullRequestInput,
 } from '@todo-platform/shared-types';
 import { createServer } from 'http';
 import { validateMcpEnv } from './config.js';
 
 const env = validateMcpEnv();
 const api = new TodoApiClient({ baseUrl: env.BACKEND_URL });
+
+const pullRequestSchema = {
+  type: 'object' as const,
+  description: 'Associated pull request',
+  properties: {
+    number: { type: 'number', description: 'PR number' },
+    title: { type: 'string', description: 'PR title' },
+    status: {
+      type: 'string',
+      description: 'PR status (e.g. open, closed, merged, draft)',
+    },
+    url: { type: 'string', description: 'URL to the pull request' },
+  },
+  required: ['number', 'title', 'status', 'url'],
+};
 
 const tools = [
   {
@@ -33,6 +49,11 @@ const tools = [
           type: 'string',
           enum: Object.values(TodoStatus),
           description: 'Todo status',
+        },
+        pullRequests: {
+          type: 'array',
+          description: 'Associated pull requests',
+          items: pullRequestSchema,
         },
       },
       required: ['title'],
@@ -64,6 +85,12 @@ const tools = [
         title: { type: 'string' },
         description: { type: 'string' },
         status: { type: 'string', enum: Object.values(TodoStatus) },
+        pullRequests: {
+          type: 'array',
+          description:
+            'Replace associated pull requests (omit to leave unchanged, pass [] to remove all)',
+          items: pullRequestSchema,
+        },
       },
       required: ['id'],
     },
@@ -106,6 +133,11 @@ const tools = [
           },
           required: ['type', 'cron', 'config'],
         },
+        pullRequests: {
+          type: 'array',
+          description: 'Associated pull requests',
+          items: pullRequestSchema,
+        },
       },
       required: ['todoId', 'name'],
     },
@@ -130,6 +162,12 @@ const tools = [
             enabled: { type: 'boolean' },
             config: { type: 'object' },
           },
+        },
+        pullRequests: {
+          type: 'array',
+          description:
+            'Replace associated pull requests (omit to leave unchanged, pass [] to remove all)',
+          items: pullRequestSchema,
         },
       },
       required: ['todoId', 'subtaskId'],
@@ -170,6 +208,7 @@ function createMcpServer(): Server {
             title: a.title as string,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
+            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
           });
           break;
         case 'list_todos':
@@ -183,6 +222,7 @@ function createMcpServer(): Server {
             title: a.title as string | undefined,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
+            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
           });
           break;
         case 'delete_todo':
@@ -194,6 +234,7 @@ function createMcpServer(): Server {
             name: a.name as string,
             status: a.status as SubtaskStatus | undefined,
             monitor: a.monitor as CreateSubtaskDto['monitor'],
+            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
           });
           break;
         case 'update_subtask':
@@ -204,6 +245,7 @@ function createMcpServer(): Server {
               name: a.name as string | undefined,
               status: a.status as SubtaskStatus | undefined,
               monitor: a.monitor as UpdateSubtaskDto['monitor'],
+              pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
             },
           );
           break;

@@ -15,6 +15,11 @@ describe('TodosService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    associatedPullRequest: {
+      deleteMany: jest.Mock;
+      create: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let events: { broadcast: jest.Mock };
 
@@ -26,6 +31,7 @@ describe('TodosService', () => {
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     subtasks: [],
+    pullRequests: [],
   };
 
   beforeEach(async () => {
@@ -37,6 +43,11 @@ describe('TodosService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      associatedPullRequest: {
+        deleteMany: jest.fn(),
+        create: jest.fn(),
+      },
+      $transaction: jest.fn((ops) => Promise.all(ops)),
     };
     events = { broadcast: jest.fn() };
 
@@ -60,6 +71,7 @@ describe('TodosService', () => {
 
   it('should create a todo and broadcast event', async () => {
     prisma.todo.create.mockResolvedValue(mockTodo);
+    prisma.todo.findUnique.mockResolvedValue(mockTodo);
     const result = await service.create({ title: 'Test Todo', description: 'Description' });
     expect(result.id).toBe('todo-1');
     expect(events.broadcast).toHaveBeenCalledWith('todo.created', expect.any(Object));
@@ -71,8 +83,11 @@ describe('TodosService', () => {
   });
 
   it('should update a todo', async () => {
-    prisma.todo.findUnique.mockResolvedValue(mockTodo);
-    prisma.todo.update.mockResolvedValue({ ...mockTodo, status: 'COMPLETED' });
+    const updatedTodo = { ...mockTodo, status: 'COMPLETED' };
+    prisma.todo.findUnique
+      .mockResolvedValueOnce(mockTodo)
+      .mockResolvedValueOnce(updatedTodo);
+    prisma.todo.update.mockResolvedValue(updatedTodo);
     const result = await service.update('todo-1', { status: TodoStatus.COMPLETED });
     expect(result.status).toBe(TodoStatus.COMPLETED);
     expect(events.broadcast).toHaveBeenCalledWith('todo.updated', expect.any(Object));

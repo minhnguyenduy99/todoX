@@ -37,6 +37,23 @@ export interface MonitorProvider {
   check(config: unknown): Promise<MonitorResult>;
 }
 
+export interface AssociatedPullRequestDto {
+  id: string;
+  number: number;
+  title: string;
+  status: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssociatedPullRequestInput {
+  number: number;
+  title: string;
+  status: string;
+  url: string;
+}
+
 export interface TodoDto {
   id: string;
   title: string;
@@ -45,6 +62,7 @@ export interface TodoDto {
   createdAt: string;
   updatedAt: string;
   subtasks?: SubtaskDto[];
+  pullRequests?: AssociatedPullRequestDto[];
 }
 
 export interface SubtaskDto {
@@ -55,6 +73,7 @@ export interface SubtaskDto {
   createdAt: string;
   updatedAt: string;
   monitor?: MonitorDto | null;
+  pullRequests?: AssociatedPullRequestDto[];
 }
 
 export interface MonitorDto {
@@ -75,24 +94,28 @@ export interface CreateTodoDto {
   title: string;
   description?: string;
   status?: TodoStatus;
+  pullRequests?: AssociatedPullRequestInput[];
 }
 
 export interface UpdateTodoDto {
   title?: string;
   description?: string;
   status?: TodoStatus;
+  pullRequests?: AssociatedPullRequestInput[];
 }
 
 export interface CreateSubtaskDto {
   name: string;
   status?: SubtaskStatus;
   monitor?: CreateMonitorDto;
+  pullRequests?: AssociatedPullRequestInput[];
 }
 
 export interface UpdateSubtaskDto {
   name?: string;
   status?: SubtaskStatus;
   monitor?: UpdateMonitorDto;
+  pullRequests?: AssociatedPullRequestInput[];
 }
 
 export interface CreateMonitorDto {

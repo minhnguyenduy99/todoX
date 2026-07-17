@@ -1,14 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { syncPullRequests } from '../common/pull-requests';
 import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
 
-const todoInclude = {
-  subtasks: {
-    include: { monitor: true },
-    orderBy: { createdAt: 'asc' as const },
+const pullRequestInclude = {
+  orderBy: { number: 'asc' as const },
+};
+
+const subtaskInclude = {
+  include: {
+    monitor: true,
+    pullRequests: pullRequestInclude,
   },
+  orderBy: { createdAt: 'asc' as const },
+};
+
+const todoInclude = {
+  subtasks: subtaskInclude,
+  pullRequests: pullRequestInclude,
 };
 
 @Injectable()
@@ -36,27 +47,41 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto): Promise<TodoDto> {
+    const { pullRequests, ...todoData } = dto;
     const todo = await this.prisma.todo.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        status: dto.status,
-      },
+      data: todoData,
       include: todoInclude,
     });
-    const result = toTodoDto(todo);
+
+    await syncPullRequests(this.prisma, { todoId: todo.id }, pullRequests);
+
+    const full = await this.prisma.todo.findUnique({
+      where: { id: todo.id },
+      include: todoInclude,
+    });
+
+    const result = toTodoDto(full!);
     this.events.broadcast('todo.created', result);
     return result;
   }
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
-    const todo = await this.prisma.todo.update({
+    const { pullRequests, ...todoData } = dto;
+
+    await this.prisma.todo.update({
       where: { id },
-      data: dto,
+      data: todoData,
+    });
+
+    await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
+
+    const todo = await this.prisma.todo.findUnique({
+      where: { id },
       include: todoInclude,
     });
-    const result = toTodoDto(todo);
+
+    const result = toTodoDto(todo!);
     this.events.broadcast('todo.updated', result);
     return result;
   }
