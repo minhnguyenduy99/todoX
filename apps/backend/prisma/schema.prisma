@@ -10,6 +10,7 @@ datasource db {
 enum TodoStatus {
   TODO
   IN_PROGRESS
+  TESTING
   BLOCKED
   COMPLETED
 }
@@ -17,6 +18,7 @@ enum TodoStatus {
 enum SubtaskStatus {
   NOT_STARTED
   IN_PROGRESS
+  TESTING
   COMPLETED
   FAILED
 }
