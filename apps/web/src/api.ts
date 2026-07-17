@@ -23,14 +23,14 @@ export function getWsUrl(): string {
 
 export function todoStatusColor(status: TodoStatus): string {
   switch (status) {
-    case TodoStatus.TODO:
+    case TodoStatus.NOT_STARTED:
       return 'badge-gray';
     case TodoStatus.IN_PROGRESS:
       return 'badge-blue';
     case TodoStatus.TESTING:
       return 'badge-yellow';
-    case TodoStatus.BLOCKED:
-      return 'badge-red';
+    case TodoStatus.WAIT_FOR_STAGING:
+      return 'badge-purple';
     case TodoStatus.COMPLETED:
       return 'badge-green';
     default:

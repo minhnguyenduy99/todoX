@@ -11,6 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  DeployedEnvironmentName,
   MonitorType,
   SubtaskStatus,
   TodoStatus,
@@ -39,6 +40,12 @@ export class CreateTodoBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedPullRequestBody)
   pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export class UpdateTodoBody {
@@ -64,6 +71,12 @@ export class UpdateTodoBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedPullRequestBody)
   pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export class CreateSubtaskMonitorBody {
@@ -132,6 +145,12 @@ export class CreateSubtaskBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedPullRequestBody)
   pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export class UpdateSubtaskBody {
@@ -158,6 +177,12 @@ export class UpdateSubtaskBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedPullRequestBody)
   pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export class CreateMonitorBody {

@@ -29,6 +29,14 @@ function prStatusClassName(status: string): string {
   return 'pr-status-closed';
 }
 
+function prChipClassName(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === 'merged') return 'pr-chip-merged';
+  if (normalized === 'open') return 'pr-chip-open';
+  if (normalized === 'draft') return 'pr-chip-draft';
+  return 'pr-chip-closed';
+}
+
 function handlePrClick(e: MouseEvent, url: string) {
   e.stopPropagation();
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -43,7 +51,7 @@ export function PullRequestList({ pullRequests, compact = false }: PullRequestLi
         {pullRequests.map((pr) => (
           <a
             key={pr.id}
-            className="pr-chip"
+            className={`pr-chip ${prChipClassName(pr.status)}`}
             href={pr.url}
             target="_blank"
             rel="noopener noreferrer"
@@ -63,7 +71,7 @@ export function PullRequestList({ pullRequests, compact = false }: PullRequestLi
       {pullRequests.map((pr) => (
         <a
           key={pr.id}
-          className="pr-item"
+          className={`pr-item ${prStatusClassName(pr.status)}`}
           href={pr.url}
           target="_blank"
           rel="noopener noreferrer"

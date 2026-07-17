@@ -1,8 +1,8 @@
 export enum TodoStatus {
-  TODO = 'TODO',
+  NOT_STARTED = 'NOT_STARTED',
   IN_PROGRESS = 'IN_PROGRESS',
   TESTING = 'TESTING',
-  BLOCKED = 'BLOCKED',
+  WAIT_FOR_STAGING = 'WAIT_FOR_STAGING',
   COMPLETED = 'COMPLETED',
 }
 
@@ -37,6 +37,27 @@ export interface MonitorProvider {
   check(config: unknown): Promise<MonitorResult>;
 }
 
+export enum DeployedEnvironmentName {
+  DEV = 'dev',
+  UAT = 'uat',
+  UAT_MAIN = 'uat-main',
+  STAGING = 'staging',
+}
+
+export const DEPLOYED_ENVIRONMENT_ORDER: DeployedEnvironmentName[] = [
+  DeployedEnvironmentName.DEV,
+  DeployedEnvironmentName.UAT,
+  DeployedEnvironmentName.UAT_MAIN,
+  DeployedEnvironmentName.STAGING,
+];
+
+export interface DeployedEnvironmentDto {
+  id: string;
+  name: DeployedEnvironmentName;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AssociatedPullRequestDto {
   id: string;
   number: number;
@@ -63,6 +84,7 @@ export interface TodoDto {
   updatedAt: string;
   subtasks?: SubtaskDto[];
   pullRequests?: AssociatedPullRequestDto[];
+  deployedEnvironments?: DeployedEnvironmentDto[];
 }
 
 export interface SubtaskDto {
@@ -74,6 +96,7 @@ export interface SubtaskDto {
   updatedAt: string;
   monitor?: MonitorDto | null;
   pullRequests?: AssociatedPullRequestDto[];
+  deployedEnvironments?: DeployedEnvironmentDto[];
 }
 
 export interface MonitorDto {
@@ -95,6 +118,7 @@ export interface CreateTodoDto {
   description?: string;
   status?: TodoStatus;
   pullRequests?: AssociatedPullRequestInput[];
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export interface UpdateTodoDto {
@@ -102,6 +126,7 @@ export interface UpdateTodoDto {
   description?: string;
   status?: TodoStatus;
   pullRequests?: AssociatedPullRequestInput[];
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export interface CreateSubtaskDto {
@@ -109,6 +134,7 @@ export interface CreateSubtaskDto {
   status?: SubtaskStatus;
   monitor?: CreateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export interface UpdateSubtaskDto {
@@ -116,6 +142,7 @@ export interface UpdateSubtaskDto {
   status?: SubtaskStatus;
   monitor?: UpdateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
+  deployedEnvironments?: DeployedEnvironmentName[];
 }
 
 export interface CreateMonitorDto {

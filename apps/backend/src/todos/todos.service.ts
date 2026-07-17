@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { syncPullRequests } from '../common/pull-requests';
+import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
 
@@ -9,10 +10,15 @@ const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
 };
 
+const deployedEnvironmentInclude = {
+  orderBy: { name: 'asc' as const },
+};
+
 const subtaskInclude = {
   include: {
     monitor: true,
     pullRequests: pullRequestInclude,
+    deployedEnvironments: deployedEnvironmentInclude,
   },
   orderBy: { createdAt: 'asc' as const },
 };
@@ -20,6 +26,7 @@ const subtaskInclude = {
 const todoInclude = {
   subtasks: subtaskInclude,
   pullRequests: pullRequestInclude,
+  deployedEnvironments: deployedEnvironmentInclude,
 };
 
 @Injectable()
@@ -47,13 +54,14 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto): Promise<TodoDto> {
-    const { pullRequests, ...todoData } = dto;
+    const { pullRequests, deployedEnvironments, ...todoData } = dto;
     const todo = await this.prisma.todo.create({
       data: todoData,
       include: todoInclude,
     });
 
     await syncPullRequests(this.prisma, { todoId: todo.id }, pullRequests);
+    await syncDeployedEnvironments(this.prisma, { todoId: todo.id }, deployedEnvironments);
 
     const full = await this.prisma.todo.findUnique({
       where: { id: todo.id },
@@ -67,7 +75,7 @@ export class TodosService {
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
-    const { pullRequests, ...todoData } = dto;
+    const { pullRequests, deployedEnvironments, ...todoData } = dto;
 
     await this.prisma.todo.update({
       where: { id },
@@ -75,6 +83,7 @@ export class TodosService {
     });
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
+    await syncDeployedEnvironments(this.prisma, { todoId: id }, deployedEnvironments);
 
     const todo = await this.prisma.todo.findUnique({
       where: { id },

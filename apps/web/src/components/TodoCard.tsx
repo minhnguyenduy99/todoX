@@ -1,6 +1,7 @@
 import type { TodoDto } from '@todo-platform/shared-types';
 import { todoStatusColor, subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
+import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 
 interface TodoCardProps {
   todo: TodoDto;
@@ -8,6 +9,7 @@ interface TodoCardProps {
   showSubtasks?: boolean;
   showSubtaskCount?: boolean;
   showStatus?: boolean;
+  showDescription?: boolean;
   onClick?: () => void;
 }
 
@@ -17,6 +19,7 @@ export function TodoCard({
   showSubtasks = true,
   showSubtaskCount = false,
   showStatus = true,
+  showDescription = true,
   onClick,
 }: TodoCardProps) {
   const subtasks = todo.subtasks ?? [];
@@ -46,7 +49,11 @@ export function TodoCard({
             pullRequests={todo.pullRequests ?? []}
             compact={compact}
           />
-          {todo.description && (
+          <DeployedEnvironmentList
+            deployedEnvironments={todo.deployedEnvironments ?? []}
+            compact={compact}
+          />
+          {showDescription && todo.description && (
             <div className="todo-description">{todo.description}</div>
           )}
           {showSubtaskCount && subtasks.length > 0 && (
@@ -68,7 +75,14 @@ export function TodoCard({
               <li key={subtask.id} className="subtask-item">
                 <div className="subtask-item-content">
                   <span className="subtask-name">{subtask.name}</span>
-                  <PullRequestList pullRequests={subtask.pullRequests ?? []} />
+                  <PullRequestList
+                    pullRequests={subtask.pullRequests ?? []}
+                    compact={compact}
+                  />
+                  <DeployedEnvironmentList
+                    deployedEnvironments={subtask.deployedEnvironments ?? []}
+                    compact={compact}
+                  />
                 </div>
                 <span className={`badge ${subtaskStatusColor(subtask.status)}`}>
                   {subtask.status}

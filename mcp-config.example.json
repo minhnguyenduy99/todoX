@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "todo-platform-docker": {
+      "type": "streamableHttp",
       "url": "http://localhost:3001/mcp"
     },
     "todo-platform-local": {

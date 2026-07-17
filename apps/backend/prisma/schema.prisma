@@ -8,10 +8,10 @@ datasource db {
 }
 
 enum TodoStatus {
-  TODO
+  NOT_STARTED
   IN_PROGRESS
   TESTING
-  BLOCKED
+  WAIT_FOR_STAGING
   COMPLETED
 }
 
@@ -29,15 +29,23 @@ enum MonitorType {
   deployment
 }
 
+enum DeployedEnvironmentName {
+  dev
+  uat
+  uat_main
+  staging
+}
+
 model Todo {
   id           String                  @id @default(uuid())
   title        String
   description  String?
-  status       TodoStatus              @default(TODO)
+  status       TodoStatus              @default(NOT_STARTED)
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
-  subtasks     Subtask[]
-  pullRequests AssociatedPullRequest[]
+  subtasks             Subtask[]
+  pullRequests         AssociatedPullRequest[]
+  deployedEnvironments DeployedEnvironment[]
 
   @@map("todos")
 }
@@ -50,8 +58,9 @@ model Subtask {
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
   todo         Todo                    @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  monitor      Monitor?
-  pullRequests AssociatedPullRequest[]
+  monitor              Monitor?
+  pullRequests         AssociatedPullRequest[]
+  deployedEnvironments DeployedEnvironment[]
 
   @@index([todoId])
   @@map("subtasks")
@@ -73,6 +82,23 @@ model AssociatedPullRequest {
   @@index([todoId])
   @@index([subtaskId])
   @@map("associated_pull_requests")
+}
+
+model DeployedEnvironment {
+  id        String                  @id @default(uuid())
+  name      DeployedEnvironmentName
+  todoId    String?
+  subtaskId String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  todo      Todo?                   @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  subtask   Subtask?                @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+
+  @@unique([todoId, name])
+  @@unique([subtaskId, name])
+  @@index([todoId])
+  @@index([subtaskId])
+  @@map("deployed_environments")
 }
 
 model Monitor {

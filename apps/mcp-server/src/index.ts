@@ -13,28 +13,24 @@ import {
   TodoStatus,
   type CreateSubtaskDto,
   type UpdateSubtaskDto,
-  type AssociatedPullRequestInput,
 } from '@todo-platform/shared-types';
 import { createServer } from 'http';
 import { validateMcpEnv } from './config.js';
+import {
+  addAssociatedPullRequest,
+  pullRequestSchema,
+  resolveCreatePullRequests,
+  resolveUpdatePullRequests,
+} from './pull-requests.js';
+import {
+  addDeployedEnvironment,
+  deployedEnvironmentSchema,
+  resolveCreateDeployedEnvironments,
+  resolveUpdateDeployedEnvironments,
+} from './deployed-environments.js';
 
 const env = validateMcpEnv();
 const api = new TodoApiClient({ baseUrl: env.BACKEND_URL });
-
-const pullRequestSchema = {
-  type: 'object' as const,
-  description: 'Associated pull request',
-  properties: {
-    number: { type: 'number', description: 'PR number' },
-    title: { type: 'string', description: 'PR title' },
-    status: {
-      type: 'string',
-      description: 'PR status (e.g. open, closed, merged, draft)',
-    },
-    url: { type: 'string', description: 'URL to the pull request' },
-  },
-  required: ['number', 'title', 'status', 'url'],
-};
 
 const tools = [
   {
@@ -52,8 +48,25 @@ const tools = [
         },
         pullRequests: {
           type: 'array',
-          description: 'Associated pull requests',
+          description:
+            'Associated pull requests (full list; prefer pullRequest to add one)',
           items: pullRequestSchema,
+        },
+        pullRequest: {
+          ...pullRequestSchema,
+          description:
+            'Associate a single pull request (use this instead of pullRequests when adding one PR)',
+        },
+        deployedEnvironments: {
+          type: 'array',
+          description:
+            'Deployed environments (full list; prefer deployedEnvironment to add one)',
+          items: deployedEnvironmentSchema,
+        },
+        deployedEnvironment: {
+          ...deployedEnvironmentSchema,
+          description:
+            'Mark a single deployed environment (use this instead of deployedEnvironments when adding one)',
         },
       },
       required: ['title'],
@@ -90,6 +103,22 @@ const tools = [
           description:
             'Replace associated pull requests (omit to leave unchanged, pass [] to remove all)',
           items: pullRequestSchema,
+        },
+        pullRequest: {
+          ...pullRequestSchema,
+          description:
+            'Add or update one associated pull request (appends; omit pullRequests when using this)',
+        },
+        deployedEnvironments: {
+          type: 'array',
+          description:
+            'Replace deployed environments (omit to leave unchanged, pass [] to remove all)',
+          items: deployedEnvironmentSchema,
+        },
+        deployedEnvironment: {
+          ...deployedEnvironmentSchema,
+          description:
+            'Add one deployed environment (appends; omit deployedEnvironments when using this)',
         },
       },
       required: ['id'],
@@ -135,8 +164,25 @@ const tools = [
         },
         pullRequests: {
           type: 'array',
-          description: 'Associated pull requests',
+          description:
+            'Associated pull requests (full list; prefer pullRequest to add one)',
           items: pullRequestSchema,
+        },
+        pullRequest: {
+          ...pullRequestSchema,
+          description:
+            'Associate a single pull request (use this instead of pullRequests when adding one PR)',
+        },
+        deployedEnvironments: {
+          type: 'array',
+          description:
+            'Deployed environments (full list; prefer deployedEnvironment to add one)',
+          items: deployedEnvironmentSchema,
+        },
+        deployedEnvironment: {
+          ...deployedEnvironmentSchema,
+          description:
+            'Mark a single deployed environment (use this instead of deployedEnvironments when adding one)',
         },
       },
       required: ['todoId', 'name'],
@@ -169,8 +215,64 @@ const tools = [
             'Replace associated pull requests (omit to leave unchanged, pass [] to remove all)',
           items: pullRequestSchema,
         },
+        pullRequest: {
+          ...pullRequestSchema,
+          description:
+            'Add or update one associated pull request (appends; omit pullRequests when using this)',
+        },
+        deployedEnvironments: {
+          type: 'array',
+          description:
+            'Replace deployed environments (omit to leave unchanged, pass [] to remove all)',
+          items: deployedEnvironmentSchema,
+        },
+        deployedEnvironment: {
+          ...deployedEnvironmentSchema,
+          description:
+            'Add one deployed environment (appends; omit deployedEnvironments when using this)',
+        },
       },
       required: ['todoId', 'subtaskId'],
+    },
+  },
+  {
+    name: 'add_associated_pull_request',
+    description:
+      'Associate a pull request with a todo or subtask. Appends to existing PRs without replacing them.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        todoId: { type: 'string', description: 'Todo ID' },
+        subtaskId: {
+          type: 'string',
+          description: 'Optional subtask ID; omit to associate with the todo',
+        },
+        number: { type: 'number', description: 'PR number' },
+        title: { type: 'string', description: 'PR title' },
+        status: {
+          type: 'string',
+          description: 'PR status (e.g. open, closed, merged, draft)',
+        },
+        url: { type: 'string', description: 'URL to the pull request' },
+      },
+      required: ['todoId', 'number', 'title', 'status', 'url'],
+    },
+  },
+  {
+    name: 'add_deployed_environment',
+    description:
+      'Record that a todo or subtask has been deployed to an environment. Appends without replacing existing environments.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        todoId: { type: 'string', description: 'Todo ID' },
+        subtaskId: {
+          type: 'string',
+          description: 'Optional subtask ID; omit to associate with the todo',
+        },
+        environment: deployedEnvironmentSchema,
+      },
+      required: ['todoId', 'environment'],
     },
   },
   {
@@ -208,7 +310,8 @@ function createMcpServer(): Server {
             title: a.title as string,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
-            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
+            pullRequests: resolveCreatePullRequests(a),
+            deployedEnvironments: resolveCreateDeployedEnvironments(a),
           });
           break;
         case 'list_todos':
@@ -222,7 +325,12 @@ function createMcpServer(): Server {
             title: a.title as string | undefined,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
-            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
+            pullRequests: await resolveUpdatePullRequests(api, { todoId: a.id as string }, a),
+            deployedEnvironments: await resolveUpdateDeployedEnvironments(
+              api,
+              { todoId: a.id as string },
+              a,
+            ),
           });
           break;
         case 'delete_todo':
@@ -234,7 +342,8 @@ function createMcpServer(): Server {
             name: a.name as string,
             status: a.status as SubtaskStatus | undefined,
             monitor: a.monitor as CreateSubtaskDto['monitor'],
-            pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
+            pullRequests: resolveCreatePullRequests(a),
+            deployedEnvironments: resolveCreateDeployedEnvironments(a),
           });
           break;
         case 'update_subtask':
@@ -245,9 +354,24 @@ function createMcpServer(): Server {
               name: a.name as string | undefined,
               status: a.status as SubtaskStatus | undefined,
               monitor: a.monitor as UpdateSubtaskDto['monitor'],
-              pullRequests: a.pullRequests as AssociatedPullRequestInput[] | undefined,
+              pullRequests: await resolveUpdatePullRequests(
+                api,
+                { todoId: a.todoId as string, subtaskId: a.subtaskId as string },
+                a,
+              ),
+              deployedEnvironments: await resolveUpdateDeployedEnvironments(
+                api,
+                { todoId: a.todoId as string, subtaskId: a.subtaskId as string },
+                a,
+              ),
             },
           );
+          break;
+        case 'add_associated_pull_request':
+          result = await addAssociatedPullRequest(api, a);
+          break;
+        case 'add_deployed_environment':
+          result = await addDeployedEnvironment(api, a);
           break;
         case 'delete_subtask':
           await api.deleteSubtask(a.todoId as string, a.subtaskId as string);

@@ -38,6 +38,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     showSubtasks={false}
                     showSubtaskCount
                     showStatus={false}
+                    showDescription={false}
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

@@ -108,6 +108,7 @@ Use this config in `.cursor/mcp.json` or your global MCP settings:
 {
   "mcpServers": {
     "todo-platform": {
+      "type": "streamableHttp",
       "url": "http://localhost:3001/mcp"
     }
   }
@@ -116,7 +117,7 @@ Use this config in `.cursor/mcp.json` or your global MCP settings:
 
 Requirements:
 1. `docker compose up` is running (backend on 3000, mcp-server on 3001)
-2. Reload Cursor after saving the config (or toggle the server in **Customize → MCP**)
+2. Toggle the server off and on in **Settings → Tools & MCP**, then open a **new Agent chat** (reload alone may not refresh tool schemas)
 
 A ready-to-use project config is included at `.cursor/mcp.json`.
 
@@ -162,6 +163,9 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `create_subtask` | Add a subtask to a todo (optionally with an attached monitor) |
 | `update_subtask` | Update a subtask (optionally update or add its monitor) |
 | `delete_subtask` | Delete a subtask (and its monitor, if any) |
+| `add_associated_pull_request` | Associate a PR with a todo or subtask (flat parameters; appends to existing PRs) |
+
+`create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
 
 ## REST API
 

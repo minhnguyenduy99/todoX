@@ -3,13 +3,21 @@ import {
   MonitorType,
   SubtaskStatus,
   TodoStatus,
+  DeployedEnvironmentName,
   type AssociatedPullRequestDto,
+  type DeployedEnvironmentDto,
   type MonitorDto,
   type MonitorResult,
   type SubtaskDto,
   type TodoDto,
 } from '@todo-platform/shared-types';
-import type { AssociatedPullRequest, Monitor, Subtask, Todo } from '@prisma/client';
+import type {
+  AssociatedPullRequest,
+  DeployedEnvironment,
+  Monitor,
+  Subtask,
+  Todo,
+} from '@prisma/client';
 
 export function toMonitorResult(value: unknown): MonitorResult | null {
   if (!value || typeof value !== 'object') return null;
@@ -57,10 +65,29 @@ export function toAssociatedPullRequestDto(
   };
 }
 
+const apiNameByPrismaName: Record<string, DeployedEnvironmentName> = {
+  dev: DeployedEnvironmentName.DEV,
+  uat: DeployedEnvironmentName.UAT,
+  uat_main: DeployedEnvironmentName.UAT_MAIN,
+  staging: DeployedEnvironmentName.STAGING,
+};
+
+export function toDeployedEnvironmentDto(
+  env: DeployedEnvironment,
+): DeployedEnvironmentDto {
+  return {
+    id: env.id,
+    name: apiNameByPrismaName[env.name],
+    createdAt: env.createdAt.toISOString(),
+    updatedAt: env.updatedAt.toISOString(),
+  };
+}
+
 export function toSubtaskDto(
   subtask: Subtask & {
     monitor?: Monitor | null;
     pullRequests?: AssociatedPullRequest[];
+    deployedEnvironments?: DeployedEnvironment[];
   },
 ): SubtaskDto {
   return {
@@ -72,6 +99,7 @@ export function toSubtaskDto(
     updatedAt: subtask.updatedAt.toISOString(),
     monitor: subtask.monitor ? toMonitorDto(subtask.monitor) : null,
     pullRequests: subtask.pullRequests?.map(toAssociatedPullRequestDto),
+    deployedEnvironments: subtask.deployedEnvironments?.map(toDeployedEnvironmentDto),
   };
 }
 
@@ -80,8 +108,10 @@ export function toTodoDto(
     subtasks?: (Subtask & {
       monitor?: Monitor | null;
       pullRequests?: AssociatedPullRequest[];
+      deployedEnvironments?: DeployedEnvironment[];
     })[];
     pullRequests?: AssociatedPullRequest[];
+    deployedEnvironments?: DeployedEnvironment[];
   },
 ): TodoDto {
   return {
@@ -93,5 +123,6 @@ export function toTodoDto(
     updatedAt: todo.updatedAt.toISOString(),
     subtasks: todo.subtasks?.map(toSubtaskDto),
     pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),
+    deployedEnvironments: todo.deployedEnvironments?.map(toDeployedEnvironmentDto),
   };
 }

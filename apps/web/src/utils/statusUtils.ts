@@ -1,10 +1,10 @@
 import { TodoStatus, SubtaskStatus, type TodoDto } from '@todo-platform/shared-types';
 
 export const TODO_STATUS_ORDER: TodoStatus[] = [
-  TodoStatus.TODO,
+  TodoStatus.NOT_STARTED,
   TodoStatus.IN_PROGRESS,
   TodoStatus.TESTING,
-  TodoStatus.BLOCKED,
+  TodoStatus.WAIT_FOR_STAGING,
   TodoStatus.COMPLETED,
 ];
 
@@ -22,14 +22,14 @@ export function todoStatusClassName(status: TodoStatus): string {
 
 export function todoStatusLabel(status: TodoStatus): string {
   switch (status) {
-    case TodoStatus.TODO:
-      return 'To Do';
+    case TodoStatus.NOT_STARTED:
+      return 'Not Started';
     case TodoStatus.IN_PROGRESS:
       return 'In Progress';
     case TodoStatus.TESTING:
       return 'Testing';
-    case TodoStatus.BLOCKED:
-      return 'Blocked';
+    case TodoStatus.WAIT_FOR_STAGING:
+      return 'Wait for Staging';
     case TodoStatus.COMPLETED:
       return 'Completed';
     default:

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { syncPullRequests } from '../common/pull-requests';
+import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { toSubtaskDto } from '../common/mappers';
 import type {
   CreateSubtaskDto,
@@ -14,6 +15,9 @@ const subtaskInclude = {
   monitor: true,
   pullRequests: {
     orderBy: { number: 'asc' as const },
+  },
+  deployedEnvironments: {
+    orderBy: { name: 'asc' as const },
   },
 };
 
@@ -29,7 +33,7 @@ export class SubtasksService {
     const todo = await this.prisma.todo.findUnique({ where: { id: todoId } });
     if (!todo) throw new NotFoundException(`Todo ${todoId} not found`);
 
-    const { monitor, pullRequests, ...subtaskData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, ...subtaskData } = dto;
     const subtask = await this.prisma.subtask.create({
       data: {
         todoId,
@@ -42,6 +46,11 @@ export class SubtasksService {
     }
 
     await syncPullRequests(this.prisma, { subtaskId: subtask.id }, pullRequests);
+    await syncDeployedEnvironments(
+      this.prisma,
+      { subtaskId: subtask.id },
+      deployedEnvironments,
+    );
 
     const full = await this.prisma.subtask.findUnique({
       where: { id: subtask.id },
@@ -60,7 +69,7 @@ export class SubtasksService {
   ): Promise<SubtaskDto> {
     await this.ensureExists(todoId, subtaskId);
 
-    const { monitor, pullRequests, ...subtaskData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, ...subtaskData } = dto;
 
     await this.prisma.subtask.update({
       where: { id: subtaskId },
@@ -94,6 +103,7 @@ export class SubtasksService {
     }
 
     await syncPullRequests(this.prisma, { subtaskId }, pullRequests);
+    await syncDeployedEnvironments(this.prisma, { subtaskId }, deployedEnvironments);
 
     const subtask = await this.prisma.subtask.findUnique({
       where: { id: subtaskId },

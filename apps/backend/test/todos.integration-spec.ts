@@ -175,4 +175,60 @@ describe('Todos API (integration)', () => {
     expect(response.body.pullRequests).toHaveLength(1);
     expect(response.body.pullRequests[0].number).toBe(99);
   });
+
+  it('POST /todos creates a todo with deployed environments', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Deployed feature',
+        deployedEnvironments: ['dev', 'uat'],
+      })
+      .expect(201);
+
+    expect(response.body.deployedEnvironments).toHaveLength(2);
+    expect(response.body.deployedEnvironments.map((env: { name: string }) => env.name)).toEqual([
+      'dev',
+      'uat',
+    ]);
+  });
+
+  it('PATCH /todos/:id adds deployed environments without removing existing ones via merge', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Env todo',
+        deployedEnvironments: ['dev'],
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${createRes.body.id}`)
+      .send({
+        deployedEnvironments: ['dev', 'uat', 'staging'],
+      })
+      .expect(200);
+
+    expect(updateRes.body.deployedEnvironments).toHaveLength(3);
+    expect(
+      updateRes.body.deployedEnvironments.map((env: { name: string }) => env.name),
+    ).toEqual(['dev', 'uat', 'staging']);
+  });
+
+  it('POST /todos/:todoId/subtasks creates a subtask with deployed environments', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({ title: 'Todo with env subtask' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/subtasks`)
+      .send({
+        name: 'Deploy to UAT',
+        deployedEnvironments: ['uat-main'],
+      })
+      .expect(201);
+
+    expect(response.body.deployedEnvironments).toHaveLength(1);
+    expect(response.body.deployedEnvironments[0].name).toBe('uat-main');
+  });
 });

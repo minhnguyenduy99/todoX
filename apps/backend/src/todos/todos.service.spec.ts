@@ -19,6 +19,10 @@ describe('TodosService', () => {
       deleteMany: jest.Mock;
       create: jest.Mock;
     };
+    deployedEnvironment: {
+      deleteMany: jest.Mock;
+      create: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let events: { broadcast: jest.Mock };
@@ -27,11 +31,12 @@ describe('TodosService', () => {
     id: 'todo-1',
     title: 'Test Todo',
     description: 'Description',
-    status: 'TODO',
+    status: 'NOT_STARTED',
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     subtasks: [],
     pullRequests: [],
+    deployedEnvironments: [],
   };
 
   beforeEach(async () => {
@@ -44,6 +49,10 @@ describe('TodosService', () => {
         delete: jest.fn(),
       },
       associatedPullRequest: {
+        deleteMany: jest.fn(),
+        create: jest.fn(),
+      },
+      deployedEnvironment: {
         deleteMany: jest.fn(),
         create: jest.fn(),
       },
