@@ -159,12 +159,9 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `get_todo` | Get a single todo by ID |
 | `update_todo` | Update a todo |
 | `delete_todo` | Delete a todo |
-| `create_subtask` | Add a subtask to a todo |
-| `update_subtask` | Update a subtask |
-| `delete_subtask` | Delete a subtask |
-| `setup_monitor` | Attach a monitor to a subtask |
-| `remove_monitor` | Remove a monitor |
-| `list_monitors` | List all monitors |
+| `create_subtask` | Add a subtask to a todo (optionally with an attached monitor) |
+| `update_subtask` | Update a subtask (optionally update or add its monitor) |
+| `delete_subtask` | Delete a subtask (and its monitor, if any) |
 
 ## REST API
 

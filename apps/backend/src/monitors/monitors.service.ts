@@ -29,7 +29,11 @@ export class MonitorsService {
     return toMonitorDto(monitor);
   }
 
-  async create(subtaskId: string, dto: CreateMonitorDto): Promise<MonitorDto> {
+  async create(
+    subtaskId: string,
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
     const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId } });
     if (!subtask) throw new NotFoundException(`Subtask ${subtaskId} not found`);
 
@@ -58,11 +62,17 @@ export class MonitorsService {
     }
 
     const result = toMonitorDto(monitor);
-    this.events.broadcast('monitor.created', result);
+    if (!options?.silent) {
+      this.events.broadcast('monitor.created', result);
+    }
     return result;
   }
 
-  async update(id: string, dto: UpdateMonitorDto): Promise<MonitorDto> {
+  async update(
+    id: string,
+    dto: UpdateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
     const existing = await this.prisma.monitor.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`Monitor ${id} not found`);
 
@@ -88,7 +98,9 @@ export class MonitorsService {
     }
 
     const result = toMonitorDto(monitor);
-    this.events.broadcast('monitor.updated', result);
+    if (!options?.silent) {
+      this.events.broadcast('monitor.updated', result);
+    }
     return result;
   }
 

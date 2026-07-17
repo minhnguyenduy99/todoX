@@ -11,6 +11,8 @@ import {
   MonitorType,
   SubtaskStatus,
   TodoStatus,
+  type CreateSubtaskDto,
+  type UpdateSubtaskDto,
 } from '@todo-platform/shared-types';
 import { createServer } from 'http';
 import { validateMcpEnv } from './config.js';
@@ -79,20 +81,39 @@ const tools = [
   },
   {
     name: 'create_subtask',
-    description: 'Create a subtask for a todo',
+    description:
+      'Create a subtask for a todo. Optionally attach a monitor as part of the subtask.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         todoId: { type: 'string' },
         name: { type: 'string' },
         status: { type: 'string', enum: Object.values(SubtaskStatus) },
+        monitor: {
+          type: 'object',
+          description: 'Optional monitor configuration (composite part of the subtask)',
+          properties: {
+            type: { type: 'string', enum: Object.values(MonitorType) },
+            cron: {
+              type: 'string',
+              description: 'Cron expression e.g. */5 * * * *',
+            },
+            enabled: { type: 'boolean' },
+            config: {
+              type: 'object',
+              description: 'Monitor-specific configuration',
+            },
+          },
+          required: ['type', 'cron', 'config'],
+        },
       },
       required: ['todoId', 'name'],
     },
   },
   {
     name: 'update_subtask',
-    description: 'Update a subtask',
+    description:
+      'Update a subtask. Optionally update or add an attached monitor.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -100,6 +121,16 @@ const tools = [
         subtaskId: { type: 'string' },
         name: { type: 'string' },
         status: { type: 'string', enum: Object.values(SubtaskStatus) },
+        monitor: {
+          type: 'object',
+          description: 'Optional monitor configuration to update or create',
+          properties: {
+            type: { type: 'string', enum: Object.values(MonitorType) },
+            cron: { type: 'string' },
+            enabled: { type: 'boolean' },
+            config: { type: 'object' },
+          },
+        },
       },
       required: ['todoId', 'subtaskId'],
     },
@@ -115,37 +146,6 @@ const tools = [
       },
       required: ['todoId', 'subtaskId'],
     },
-  },
-  {
-    name: 'setup_monitor',
-    description: 'Set up a monitor for a subtask',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        subtaskId: { type: 'string' },
-        type: { type: 'string', enum: Object.values(MonitorType) },
-        cron: { type: 'string', description: 'Cron expression e.g. */5 * * * *' },
-        enabled: { type: 'boolean' },
-        config: { type: 'object', description: 'Monitor-specific configuration' },
-      },
-      required: ['subtaskId', 'type', 'cron', 'config'],
-    },
-  },
-  {
-    name: 'remove_monitor',
-    description: 'Remove a monitor by ID',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        monitorId: { type: 'string' },
-      },
-      required: ['monitorId'],
-    },
-  },
-  {
-    name: 'list_monitors',
-    description: 'List all monitors',
-    inputSchema: { type: 'object' as const, properties: {} },
   },
 ];
 
@@ -193,6 +193,7 @@ function createMcpServer(): Server {
           result = await api.createSubtask(a.todoId as string, {
             name: a.name as string,
             status: a.status as SubtaskStatus | undefined,
+            monitor: a.monitor as CreateSubtaskDto['monitor'],
           });
           break;
         case 'update_subtask':
@@ -202,27 +203,13 @@ function createMcpServer(): Server {
             {
               name: a.name as string | undefined,
               status: a.status as SubtaskStatus | undefined,
+              monitor: a.monitor as UpdateSubtaskDto['monitor'],
             },
           );
           break;
         case 'delete_subtask':
           await api.deleteSubtask(a.todoId as string, a.subtaskId as string);
           result = { success: true, subtaskId: a.subtaskId };
-          break;
-        case 'setup_monitor':
-          result = await api.createMonitor(a.subtaskId as string, {
-            type: a.type as MonitorType,
-            cron: a.cron as string,
-            enabled: a.enabled as boolean | undefined,
-            config: a.config as Record<string, unknown>,
-          });
-          break;
-        case 'remove_monitor':
-          await api.deleteMonitor(a.monitorId as string);
-          result = { success: true, monitorId: a.monitorId };
-          break;
-        case 'list_monitors':
-          result = await api.listMonitors();
           break;
         default:
           return {

@@ -84,11 +84,13 @@ export interface UpdateTodoDto {
 export interface CreateSubtaskDto {
   name: string;
   status?: SubtaskStatus;
+  monitor?: CreateMonitorDto;
 }
 
 export interface UpdateSubtaskDto {
   name?: string;
   status?: SubtaskStatus;
+  monitor?: UpdateMonitorDto;
 }
 
 export interface CreateMonitorDto {
