@@ -5,7 +5,9 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   MonitorType,
@@ -48,6 +50,49 @@ export class UpdateTodoBody {
   status?: TodoStatus;
 }
 
+export class CreateSubtaskMonitorBody {
+  @ApiProperty({ enum: MonitorType })
+  @IsEnum(MonitorType)
+  type!: MonitorType;
+
+  @ApiProperty({ example: '*/5 * * * *' })
+  @IsString()
+  @IsNotEmpty()
+  cron!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  @IsObject()
+  config!: Record<string, unknown>;
+}
+
+export class UpdateSubtaskMonitorBody {
+  @ApiPropertyOptional({ enum: MonitorType })
+  @IsOptional()
+  @IsEnum(MonitorType)
+  type?: MonitorType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  cron?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @IsOptional()
+  @IsObject()
+  config?: Record<string, unknown>;
+}
+
 export class CreateSubtaskBody {
   @ApiProperty()
   @IsString()
@@ -58,6 +103,12 @@ export class CreateSubtaskBody {
   @IsOptional()
   @IsEnum(SubtaskStatus)
   status?: SubtaskStatus;
+
+  @ApiPropertyOptional({ type: CreateSubtaskMonitorBody })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateSubtaskMonitorBody)
+  monitor?: CreateSubtaskMonitorBody;
 }
 
 export class UpdateSubtaskBody {
@@ -71,6 +122,12 @@ export class UpdateSubtaskBody {
   @IsOptional()
   @IsEnum(SubtaskStatus)
   status?: SubtaskStatus;
+
+  @ApiPropertyOptional({ type: UpdateSubtaskMonitorBody })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateSubtaskMonitorBody)
+  monitor?: UpdateSubtaskMonitorBody;
 }
 
 export class CreateMonitorBody {

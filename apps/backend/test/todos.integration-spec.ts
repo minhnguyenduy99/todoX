@@ -65,4 +65,30 @@ describe('Todos API (integration)', () => {
     expect(response.body).toHaveProperty('status');
     expect(response.body).toHaveProperty('services');
   });
+
+  it('POST /todos/:todoId/subtasks creates a subtask with an optional monitor', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({ title: 'Todo with subtask' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/subtasks`)
+      .send({
+        name: 'Wait for deployment',
+        monitor: {
+          type: 'http',
+          cron: '*/5 * * * *',
+          config: { url: 'https://example.com', expectedStatus: 200 },
+        },
+      })
+      .expect(201);
+
+    expect(response.body.name).toBe('Wait for deployment');
+    expect(response.body.monitor).toMatchObject({
+      type: 'http',
+      cron: '*/5 * * * *',
+      enabled: true,
+    });
+  });
 });

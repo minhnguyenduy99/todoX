@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { MonitorsService } from '../monitors/monitors.service';
 import { toSubtaskDto } from '../common/mappers';
 import type {
   CreateSubtaskDto,
@@ -13,6 +14,7 @@ export class SubtasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
+    private readonly monitorsService: MonitorsService,
   ) {}
 
   async create(todoId: string, dto: CreateSubtaskDto): Promise<SubtaskDto> {
@@ -25,10 +27,18 @@ export class SubtasksService {
         name: dto.name,
         status: dto.status,
       },
+    });
+
+    if (dto.monitor) {
+      await this.monitorsService.create(subtask.id, dto.monitor, { silent: true });
+    }
+
+    const full = await this.prisma.subtask.findUnique({
+      where: { id: subtask.id },
       include: { monitor: true },
     });
 
-    const result = toSubtaskDto(subtask);
+    const result = toSubtaskDto(full!);
     this.events.broadcast('subtask.created', result);
     return result;
   }
@@ -40,13 +50,45 @@ export class SubtasksService {
   ): Promise<SubtaskDto> {
     await this.ensureExists(todoId, subtaskId);
 
-    const subtask = await this.prisma.subtask.update({
+    const { monitor, ...subtaskData } = dto;
+
+    await this.prisma.subtask.update({
       where: { id: subtaskId },
-      data: dto,
+      data: subtaskData,
+    });
+
+    if (monitor) {
+      const existing = await this.prisma.monitor.findUnique({
+        where: { subtaskId },
+      });
+
+      if (existing) {
+        await this.monitorsService.update(existing.id, monitor, { silent: true });
+      } else {
+        if (!monitor.type || !monitor.cron || !monitor.config) {
+          throw new BadRequestException(
+            'Subtask has no monitor; provide type, cron, and config to create one',
+          );
+        }
+        await this.monitorsService.create(
+          subtaskId,
+          {
+            type: monitor.type,
+            cron: monitor.cron,
+            enabled: monitor.enabled,
+            config: monitor.config,
+          },
+          { silent: true },
+        );
+      }
+    }
+
+    const subtask = await this.prisma.subtask.findUnique({
+      where: { id: subtaskId },
       include: { monitor: true },
     });
 
-    const result = toSubtaskDto(subtask);
+    const result = toSubtaskDto(subtask!);
     this.events.broadcast('subtask.updated', result);
     return result;
   }
