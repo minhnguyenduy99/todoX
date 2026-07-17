@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTodos } from './api';
 import { useWebSocket } from './hooks/useWebSocket';
-import { TodoCard } from './components/TodoCard';
+import { TodoListView } from './components/TodoListView';
+import { KanbanView } from './components/KanbanView';
+
+type ViewMode = 'list' | 'kanban';
 
 export function App() {
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const connected = useWebSocket();
   const { data: todos, isLoading, error } = useQuery({
     queryKey: ['todos'],
@@ -14,9 +19,29 @@ export function App() {
     <div className="app">
       <header className="header">
         <h1>Todo Platform</h1>
-        <div className="connection-status">
-          <span className={`connection-dot ${connected ? 'connected' : ''}`} />
-          {connected ? 'Live updates active' : 'Connecting...'}
+        <div className="header-actions">
+          {todos && todos.length > 0 && (
+            <div className="view-toggle" role="group" aria-label="View mode">
+              <button
+                type="button"
+                className={`view-toggle-btn${viewMode === 'list' ? ' active' : ''}`}
+                onClick={() => setViewMode('list')}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                className={`view-toggle-btn${viewMode === 'kanban' ? ' active' : ''}`}
+                onClick={() => setViewMode('kanban')}
+              >
+                Kanban
+              </button>
+            </div>
+          )}
+          <div className="connection-status">
+            <span className={`connection-dot ${connected ? 'connected' : ''}`} />
+            {connected ? 'Live updates active' : 'Connecting...'}
+          </div>
         </div>
       </header>
 
@@ -36,11 +61,7 @@ export function App() {
       )}
 
       {todos && todos.length > 0 && (
-        <div className="todo-grid">
-          {todos.map((todo) => (
-            <TodoCard key={todo.id} todo={todo} />
-          ))}
-        </div>
+        viewMode === 'list' ? <TodoListView todos={todos} /> : <KanbanView todos={todos} />
       )}
     </div>
   );

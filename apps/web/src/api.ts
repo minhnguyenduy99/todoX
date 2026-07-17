@@ -27,6 +27,8 @@ export function todoStatusColor(status: TodoStatus): string {
       return 'badge-gray';
     case TodoStatus.IN_PROGRESS:
       return 'badge-blue';
+    case TodoStatus.TESTING:
+      return 'badge-yellow';
     case TodoStatus.BLOCKED:
       return 'badge-red';
     case TodoStatus.COMPLETED:
@@ -42,6 +44,8 @@ export function subtaskStatusColor(status: SubtaskStatus): string {
       return 'badge-gray';
     case SubtaskStatus.IN_PROGRESS:
       return 'badge-blue';
+    case SubtaskStatus.TESTING:
+      return 'badge-yellow';
     case SubtaskStatus.COMPLETED:
       return 'badge-green';
     case SubtaskStatus.FAILED:

@@ -1,6 +1,7 @@
 export enum TodoStatus {
   TODO = 'TODO',
   IN_PROGRESS = 'IN_PROGRESS',
+  TESTING = 'TESTING',
   BLOCKED = 'BLOCKED',
   COMPLETED = 'COMPLETED',
 }
@@ -8,6 +9,7 @@ export enum TodoStatus {
 export enum SubtaskStatus {
   NOT_STARTED = 'NOT_STARTED',
   IN_PROGRESS = 'IN_PROGRESS',
+  TESTING = 'TESTING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
 }

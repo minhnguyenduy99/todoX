@@ -3,24 +3,55 @@ import { todoStatusColor, subtaskStatusColor } from '../api';
 
 interface TodoCardProps {
   todo: TodoDto;
+  compact?: boolean;
+  showSubtasks?: boolean;
+  showSubtaskCount?: boolean;
+  onClick?: () => void;
 }
 
-export function TodoCard({ todo }: TodoCardProps) {
+export function TodoCard({
+  todo,
+  compact = false,
+  showSubtasks = true,
+  showSubtaskCount = false,
+  onClick,
+}: TodoCardProps) {
   const subtasks = todo.subtasks ?? [];
+  const isInteractive = Boolean(onClick);
 
   return (
-    <div className="todo-card">
+    <div
+      className={`todo-card${compact ? ' todo-card-compact' : ''}${isInteractive ? ' todo-card-interactive' : ''}`}
+      onClick={onClick}
+      onKeyDown={
+        isInteractive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+    >
       <div className="todo-header">
-        <div>
+        <div className="todo-header-content">
           <div className="todo-title">{todo.title}</div>
           {todo.description && (
             <div className="todo-description">{todo.description}</div>
+          )}
+          {showSubtaskCount && subtasks.length > 0 && (
+            <div className="subtask-count">
+              {subtasks.length} subtask{subtasks.length === 1 ? '' : 's'}
+            </div>
           )}
         </div>
         <span className={`badge ${todoStatusColor(todo.status)}`}>{todo.status}</span>
       </div>
 
-      {subtasks.length > 0 && (
+      {showSubtasks && subtasks.length > 0 && (
         <div className="subtasks">
           <h3>Subtasks</h3>
           <ul className="subtask-list">
