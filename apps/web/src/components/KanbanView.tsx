@@ -2,7 +2,12 @@ import { useState } from 'react';
 import type { TodoDto } from '@todo-platform/shared-types';
 import { TodoCard } from './TodoCard';
 import { SubtaskPanel } from './SubtaskPanel';
-import { groupTodosByStatus, todoStatusLabel, TODO_STATUS_ORDER } from '../utils/statusUtils';
+import {
+  groupTodosByStatus,
+  todoStatusClassName,
+  todoStatusLabel,
+  TODO_STATUS_ORDER,
+} from '../utils/statusUtils';
 
 interface KanbanViewProps {
   todos: TodoDto[];
@@ -20,7 +25,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
 
           return (
             <div key={status} className="kanban-column">
-              <div className="kanban-column-header">
+              <div className={`kanban-column-header ${todoStatusClassName(status)}`}>
                 <h2 className="kanban-column-title">{todoStatusLabel(status)}</h2>
                 <span className="kanban-column-count">{items.length}</span>
               </div>
@@ -32,6 +37,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     compact
                     showSubtasks={false}
                     showSubtaskCount
+                    showStatus={false}
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

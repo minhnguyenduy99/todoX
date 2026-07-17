@@ -16,6 +16,10 @@ export const SUBTASK_STATUS_ORDER: SubtaskStatus[] = [
   SubtaskStatus.FAILED,
 ];
 
+export function todoStatusClassName(status: TodoStatus): string {
+  return `status-${status.toLowerCase().replace(/_/g, '-')}`;
+}
+
 export function todoStatusLabel(status: TodoStatus): string {
   switch (status) {
     case TodoStatus.TODO:

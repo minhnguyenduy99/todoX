@@ -120,29 +120,126 @@ body {
   gap: 0.5rem;
 }
 
-.status-group-header {
+.status-group-header,
+.kanban-column-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid var(--border);
 }
 
-.status-group-title {
+.status-group-header {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.status-group-title,
+.kanban-column-title {
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
 }
 
-.status-group-count {
+.kanban-column-title {
+  font-size: 0.75rem;
+}
+
+.status-group-count,
+.kanban-column-count {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.25);
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
+}
+
+.kanban-column-count {
+  font-size: 0.6875rem;
+}
+
+.status-todo {
+  background: rgba(107, 114, 128, 0.15);
+  border-color: rgba(107, 114, 128, 0.35);
+}
+
+.status-todo .status-group-title,
+.status-todo .kanban-column-title,
+.status-todo .status-group-count,
+.status-todo .kanban-column-count {
+  color: var(--gray);
+}
+
+.status-todo .status-group-count,
+.status-todo .kanban-column-count {
+  background: rgba(107, 114, 128, 0.2);
+}
+
+.status-in-progress {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.status-in-progress .status-group-title,
+.status-in-progress .kanban-column-title,
+.status-in-progress .status-group-count,
+.status-in-progress .kanban-column-count {
+  color: var(--blue);
+}
+
+.status-in-progress .status-group-count,
+.status-in-progress .kanban-column-count {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.status-testing {
+  background: rgba(234, 179, 8, 0.12);
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.status-testing .status-group-title,
+.status-testing .kanban-column-title,
+.status-testing .status-group-count,
+.status-testing .kanban-column-count {
+  color: var(--yellow);
+}
+
+.status-testing .status-group-count,
+.status-testing .kanban-column-count {
+  background: rgba(234, 179, 8, 0.2);
+}
+
+.status-blocked {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.status-blocked .status-group-title,
+.status-blocked .kanban-column-title,
+.status-blocked .status-group-count,
+.status-blocked .kanban-column-count {
+  color: var(--red);
+}
+
+.status-blocked .status-group-count,
+.status-blocked .kanban-column-count {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.status-completed {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.status-completed .status-group-title,
+.status-completed .kanban-column-title,
+.status-completed .status-group-count,
+.status-completed .kanban-column-count {
+  color: var(--green);
+}
+
+.status-completed .status-group-count,
+.status-completed .kanban-column-count {
+  background: rgba(34, 197, 94, 0.2);
 }
 
 .status-group-items {
@@ -167,27 +264,10 @@ body {
 }
 
 .kanban-column-header {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.625rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 8px;
-}
-
-.kanban-column-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.kanban-column-count {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .kanban-column-items {
