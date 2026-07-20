@@ -1,14 +1,18 @@
 import type {
   CreateMonitorDto,
+  CreateReleaseDto,
   CreateServiceDto,
   CreateSubtaskDto,
   CreateTodoDto,
   HealthResponse,
+  ListTodosParams,
   MonitorDto,
+  ReleaseDto,
   ServiceDto,
   SubtaskDto,
   TodoDto,
   UpdateMonitorDto,
+  UpdateReleaseDto,
   UpdateServiceDto,
   UpdateSubtaskDto,
   UpdateTodoDto,
@@ -55,8 +59,16 @@ export class TodoApiClient {
   }
 
   // Todos
-  listTodos(): Promise<TodoDto[]> {
-    return this.request<TodoDto[]>('GET', '/todos');
+  listTodos(params?: ListTodosParams): Promise<TodoDto[]> {
+    const search = new URLSearchParams();
+    if (params?.status) search.set('status', params.status);
+    if (params?.serviceId) search.set('serviceId', params.serviceId);
+    if (params?.serviceKeyName) search.set('serviceKeyName', params.serviceKeyName);
+    if (params?.availableForRelease !== undefined) {
+      search.set('availableForRelease', String(params.availableForRelease));
+    }
+    const query = search.toString();
+    return this.request<TodoDto[]>('GET', `/todos${query ? `?${query}` : ''}`);
   }
 
   getTodo(id: string): Promise<TodoDto> {
@@ -94,6 +106,27 @@ export class TodoApiClient {
 
   deleteService(id: string): Promise<void> {
     return this.request<void>('DELETE', `/services/${id}`);
+  }
+
+  // Releases
+  listReleases(): Promise<ReleaseDto[]> {
+    return this.request<ReleaseDto[]>('GET', '/releases');
+  }
+
+  getRelease(id: string): Promise<ReleaseDto> {
+    return this.request<ReleaseDto>('GET', `/releases/${id}`);
+  }
+
+  createRelease(data: CreateReleaseDto): Promise<ReleaseDto> {
+    return this.request<ReleaseDto>('POST', '/releases', data);
+  }
+
+  updateRelease(id: string, data: UpdateReleaseDto): Promise<ReleaseDto> {
+    return this.request<ReleaseDto>('PATCH', `/releases/${id}`, data);
+  }
+
+  cancelRelease(id: string): Promise<void> {
+    return this.request<void>('DELETE', `/releases/${id}`);
   }
 
   // Subtasks

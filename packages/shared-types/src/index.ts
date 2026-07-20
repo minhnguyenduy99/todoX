@@ -134,6 +134,7 @@ export interface TodoDto {
   title: string;
   description: string | null;
   status: TodoStatus;
+  currentReleaseId: string | null;
   createdAt: string;
   updatedAt: string;
   service?: ServiceDto | null;
@@ -160,6 +161,7 @@ export interface MonitorDto {
   id: string;
   todoId: string | null;
   subtaskId: string | null;
+  releaseDeploymentId: string | null;
   type: MonitorType;
   cron: string;
   enabled: boolean;
@@ -234,7 +236,9 @@ export type WebSocketEventType =
   | 'subtask.deleted'
   | 'monitor.created'
   | 'monitor.updated'
-  | 'monitor.deleted';
+  | 'monitor.deleted'
+  | 'release.created'
+  | 'release.updated';
 
 export interface WebSocketEvent<T = unknown> {
   type: WebSocketEventType;
@@ -269,4 +273,87 @@ export interface HealthResponse {
     database: 'up' | 'down';
     redis: 'up' | 'down';
   };
+}
+
+export enum ReleaseType {
+  STAGING = 'staging',
+  PROD = 'prod',
+}
+
+export enum ReleaseStatus {
+  NOT_STARTED = 'not_started',
+  IN_PROGRESS = 'in_progress',
+  SUCCESSFUL = 'successful',
+  PARTIAL_SUCCESS = 'partial_success',
+  FAILED = 'failed',
+}
+
+export enum ReleaseDeploymentStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  SUCCESSFUL = 'successful',
+  FAILED = 'failed',
+}
+
+export interface ReleaseMemberSummaryDto {
+  todoId: string;
+  title: string;
+  serviceId: string | null;
+  serviceKeyName: string | null;
+  archived: boolean;
+}
+
+export interface ReleaseDeploymentDto {
+  id: string;
+  releaseId: string;
+  serviceId: string;
+  serviceKeyName: string;
+  environment: ReleaseType;
+  jobUrl: string | null;
+  buildNumber: number | null;
+  status: ReleaseDeploymentStatus;
+  monitor?: MonitorDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseDto {
+  id: string;
+  releaseDate: string;
+  content: string;
+  type: ReleaseType;
+  status: ReleaseStatus;
+  members: ReleaseMemberSummaryDto[];
+  deployments: ReleaseDeploymentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseDeploymentInput {
+  serviceId?: string;
+  serviceKeyName?: string;
+  jobUrl: string;
+  buildNumber: number;
+}
+
+export interface CreateReleaseDto {
+  type: ReleaseType;
+  releaseDate: string;
+  content: string;
+  todoIds: string[];
+  deployments?: ReleaseDeploymentInput[];
+}
+
+export interface UpdateReleaseDto {
+  content?: string;
+  todoIdsToAdd?: string[];
+  todoIdsToRemove?: string[];
+  deployments?: ReleaseDeploymentInput[];
+}
+
+export interface ListTodosParams {
+  status?: TodoStatus;
+  serviceId?: string;
+  serviceKeyName?: string;
+  availableForRelease?: boolean;
 }
