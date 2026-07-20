@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ReleaseType,
@@ -7,127 +7,176 @@ import {
 import { fetchReleases, formatDate, releaseStatusColor, releaseStatusLabel } from '../api';
 
 export function ReleasesView() {
+  const [selectedRelease, setSelectedRelease] = useState<ReleaseDto | null>(null);
   const { data: releases, isLoading, error } = useQuery({
     queryKey: ['releases'],
     queryFn: fetchReleases,
   });
 
-  if (isLoading) {
-    return (
-      <div className="releases-panel">
-        <h2 className="releases-panel-title">Releases</h2>
-        <div className="releases-panel-status">Loading releases...</div>
-      </div>
-    );
-  }
+  return (
+    <div className="releases-panel">
+      <h2 className="releases-panel-title">Releases</h2>
 
-  if (error) {
-    return (
-      <div className="releases-panel">
-        <h2 className="releases-panel-title">Releases</h2>
+      {isLoading && (
+        <div className="releases-panel-status">Loading releases...</div>
+      )}
+
+      {error && (
         <div className="error">
           Failed to load releases:{' '}
           {error instanceof Error ? error.message : 'Unknown error'}
         </div>
-      </div>
-    );
-  }
+      )}
 
-  if (!releases?.length) {
-    return (
-      <div className="releases-panel">
-        <h2 className="releases-panel-title">Releases</h2>
+      {!isLoading && !error && !releases?.length && (
         <div className="releases-panel-empty">
           <p>No releases yet</p>
           <p className="release-muted">
             Create releases via MCP or REST to track staging and prod deploys here.
           </p>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="releases-panel">
-      <h2 className="releases-panel-title">Releases</h2>
-      <div className="releases-view">
-        {releases.map((release) => (
-          <ReleaseCard key={release.id} release={release} />
-        ))}
-      </div>
+      {!isLoading && !error && !!releases?.length && (
+        <div className="releases-view">
+          {releases.map((release) => (
+            <button
+              key={release.id}
+              type="button"
+              className="release-summary"
+              onClick={() => setSelectedRelease(release)}
+            >
+              <div className="release-summary-top">
+                <span className="release-summary-date">{release.releaseDate}</span>
+                <span
+                  className={`badge ${
+                    release.type === ReleaseType.PROD ? 'badge-red' : 'badge-purple'
+                  }`}
+                >
+                  {release.type}
+                </span>
+                <span className={`badge ${releaseStatusColor(release.status)}`}>
+                  {releaseStatusLabel(release.status)}
+                </span>
+              </div>
+              <span className="release-meta">Updated {formatDate(release.updatedAt)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedRelease && (
+        <ReleasePanel
+          release={selectedRelease}
+          onClose={() => setSelectedRelease(null)}
+        />
+      )}
     </div>
   );
 }
 
-function ReleaseCard({ release }: { release: ReleaseDto }) {
-  const [expanded, setExpanded] = useState(false);
-  const truncated =
-    release.content.length > 280 && !expanded
-      ? `${release.content.slice(0, 280)}…`
-      : release.content;
+function ReleasePanel({
+  release,
+  onClose,
+}: {
+  release: ReleaseDto;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
-    <article className="release-card">
-      <header className="release-card-header">
-        <div className="release-card-title-row">
-          <h2>{release.releaseDate}</h2>
-          <span className={`badge ${release.type === ReleaseType.PROD ? 'badge-red' : 'badge-purple'}`}>
-            {release.type}
-          </span>
-          <span className={`badge ${releaseStatusColor(release.status)}`}>
-            {releaseStatusLabel(release.status)}
-          </span>
+    <div className="subtask-panel-overlay" onClick={onClose}>
+      <div
+        className="subtask-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="release-panel-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="subtask-panel-header">
+          <div className="subtask-panel-header-content">
+            <h2 id="release-panel-title" className="subtask-panel-title">
+              {release.releaseDate}
+            </h2>
+            <div className="release-summary-top">
+              <span
+                className={`badge ${
+                  release.type === ReleaseType.PROD ? 'badge-red' : 'badge-purple'
+                }`}
+              >
+                {release.type}
+              </span>
+              <span className={`badge ${releaseStatusColor(release.status)}`}>
+                {releaseStatusLabel(release.status)}
+              </span>
+            </div>
+            <p className="release-meta">Updated {formatDate(release.updatedAt)}</p>
+          </div>
+          <button type="button" className="subtask-panel-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </div>
-        <p className="release-meta">Updated {formatDate(release.updatedAt)}</p>
-      </header>
 
-      <pre className={`release-content${expanded ? ' expanded' : ''}`}>{truncated}</pre>
-      {release.content.length > 280 && (
-        <button
-          type="button"
-          className="release-expand-btn"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
+        <div className="subtask-panel-body">
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Content</h3>
+            {release.content ? (
+              <div className="subtask-panel-description-content">
+                <pre className="release-content">{release.content}</pre>
+              </div>
+            ) : (
+              <p className="subtask-panel-empty-field">No content</p>
+            )}
+          </section>
 
-      <section className="release-section">
-        <h3>Members</h3>
-        <ul className="release-member-list">
-          {release.members.map((member) => (
-            <li key={`${member.todoId}-${member.archived ? 'archived' : 'active'}`}>
-              <span>{member.title}</span>
-              {member.serviceKeyName && (
-                <span className="release-service-chip">{member.serviceKeyName}</span>
-              )}
-              {member.archived && <span className="badge badge-gray">archived</span>}
-            </li>
-          ))}
-        </ul>
-      </section>
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Members</h3>
+            {release.members.length === 0 ? (
+              <p className="subtask-panel-empty-field">No members</p>
+            ) : (
+              <ul className="release-member-list">
+                {release.members.map((member) => (
+                  <li key={`${member.todoId}-${member.archived ? 'archived' : 'active'}`}>
+                    <span>{member.title}</span>
+                    {member.serviceKeyName && (
+                      <span className="release-service-chip">{member.serviceKeyName}</span>
+                    )}
+                    {member.archived && <span className="badge badge-gray">archived</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-      <section className="release-section">
-        <h3>Deployments</h3>
-        {release.deployments.length === 0 ? (
-          <p className="release-muted">No deployment URLs attached yet.</p>
-        ) : (
-          <ul className="release-deployment-list">
-            {release.deployments.map((deployment) => (
-              <li key={deployment.id}>
-                <span className="release-service-chip">{deployment.serviceKeyName}</span>
-                <span className={`badge ${releaseDeploymentStatusColor(deployment.status)}`}>
-                  {deployment.status.replaceAll('_', ' ')}
-                </span>
-                {deployment.buildNumber != null && (
-                  <span className="release-muted">#{deployment.buildNumber}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </article>
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Deployments</h3>
+            {release.deployments.length === 0 ? (
+              <p className="subtask-panel-empty-field">No deployment URLs attached yet.</p>
+            ) : (
+              <ul className="release-deployment-list">
+                {release.deployments.map((deployment) => (
+                  <li key={deployment.id}>
+                    <span className="release-service-chip">{deployment.serviceKeyName}</span>
+                    <span className={`badge ${releaseDeploymentStatusColor(deployment.status)}`}>
+                      {deployment.status.replaceAll('_', ' ')}
+                    </span>
+                    {deployment.buildNumber != null && (
+                      <span className="release-muted">#{deployment.buildNumber}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }
 
