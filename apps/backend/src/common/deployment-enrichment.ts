@@ -39,6 +39,12 @@ function deploymentFromMonitor(
   const cfg = monitor.config as unknown as DeploymentMonitorConfig;
   if (!cfg?.env) return undefined;
 
+  // Release-scoped prod monitors are not todo board chips (KTD3).
+  if (cfg.env === 'prod') return undefined;
+  if (!Object.values(DeployedEnvironmentName).includes(cfg.env)) {
+    return undefined;
+  }
+
   const deployment = extractDeploymentInfo(monitor.lastResult);
   if (!deployment) return undefined;
 
