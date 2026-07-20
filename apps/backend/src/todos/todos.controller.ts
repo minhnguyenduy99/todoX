@@ -6,10 +6,12 @@ import {
   Delete,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { TodosService } from './todos.service';
 import { CreateTodoBody, UpdateTodoBody } from '../common/dto';
+import { ListTodosQuery } from '../common/release.dto';
 
 @ApiTags('todos')
 @Controller('todos')
@@ -17,9 +19,9 @@ export class TodosController {
   constructor(private readonly todosService: TodosService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all todos' })
-  findAll() {
-    return this.todosService.findAll();
+  @ApiOperation({ summary: 'List todos with optional filters' })
+  findAll(@Query() query: ListTodosQuery) {
+    return this.todosService.findAll(query);
   }
 
   @Get(':id')

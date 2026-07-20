@@ -5,11 +5,17 @@ import {
   TodoStatus,
   DeployedEnvironmentName,
   AssociatedTicketType,
+  ReleaseDeploymentStatus,
+  ReleaseStatus,
+  ReleaseType,
   type AssociatedPullRequestDto,
   type AssociatedTicketDto,
   type DeployedEnvironmentDto,
   type MonitorDto,
   type MonitorResult,
+  type ReleaseDeploymentDto,
+  type ReleaseDto,
+  type ReleaseMemberSummaryDto,
   type ServiceDto,
   type SubtaskDto,
   type TodoDto,
@@ -17,8 +23,11 @@ import {
 import type {
   AssociatedPullRequest,
   AssociatedTicket,
+  CompletedTodo,
   DeployedEnvironment,
   Monitor,
+  Release,
+  ReleaseDeployment,
   Service,
   Subtask,
   Todo,
@@ -49,7 +58,7 @@ export function toMonitorDto(monitor: Monitor): MonitorDto {
     id: monitor.id,
     todoId: monitor.todoId,
     subtaskId: monitor.subtaskId,
-    releaseDeploymentId: monitor.releaseDeploymentId,
+    releaseDeploymentId: monitor.releaseDeploymentId ?? null,
     type: monitor.type as MonitorType,
     cron: monitor.cron,
     enabled: monitor.enabled,
@@ -184,7 +193,7 @@ export function toTodoDto(
     title: todo.title,
     description: todo.description,
     status: todo.status as TodoStatus,
-    currentReleaseId: todo.currentReleaseId,
+    currentReleaseId: todo.currentReleaseId ?? null,
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
     service: todo.service ? toServiceDto(todo.service) : null,
@@ -199,3 +208,76 @@ export function toTodoDto(
     ),
   };
 }
+
+export function toReleaseDeploymentDto(
+  deployment: ReleaseDeployment & {
+    service: Service;
+    monitor?: Monitor | null;
+  },
+): ReleaseDeploymentDto {
+  return {
+    id: deployment.id,
+    releaseId: deployment.releaseId,
+    serviceId: deployment.serviceId,
+    serviceKeyName: deployment.service.keyName,
+    environment: deployment.environment as ReleaseType,
+    jobUrl: deployment.jobUrl,
+    buildNumber: deployment.buildNumber,
+    status: deployment.status as ReleaseDeploymentStatus,
+    monitor: deployment.monitor ? toMonitorDto(deployment.monitor) : null,
+    createdAt: deployment.createdAt.toISOString(),
+    updatedAt: deployment.updatedAt.toISOString(),
+  };
+}
+
+export function toReleaseDto(
+  release: Release & {
+    members: Array<{
+      todoId: string;
+      todo: Todo & { service?: Service | null };
+    }>;
+    deployments: Array<
+      ReleaseDeployment & { service: Service; monitor?: Monitor | null }
+    >;
+    completedTodos?: Array<
+      CompletedTodo & { service?: Service | null }
+    >;
+  },
+): ReleaseDto {
+  const activeMembers: ReleaseMemberSummaryDto[] = release.members.map((member) => ({
+    todoId: member.todoId,
+    title: member.todo.title,
+    serviceId: member.todo.serviceId,
+    serviceKeyName: member.todo.service?.keyName ?? null,
+    archived: false,
+  }));
+
+  const archivedMembers: ReleaseMemberSummaryDto[] = (release.completedTodos ?? []).map(
+    (archived) => ({
+      todoId: archived.originalTodoId,
+      title: archived.title,
+      serviceId: archived.serviceId,
+      serviceKeyName: archived.service?.keyName ?? null,
+      archived: true,
+    }),
+  );
+
+  const seen = new Set(activeMembers.map((m) => m.todoId));
+  const members = [
+    ...activeMembers,
+    ...archivedMembers.filter((m) => !seen.has(m.todoId)),
+  ];
+
+  return {
+    id: release.id,
+    releaseDate: release.releaseDate,
+    content: release.content,
+    type: release.type as ReleaseType,
+    status: release.status as ReleaseStatus,
+    members,
+    deployments: release.deployments.map(toReleaseDeploymentDto),
+    createdAt: release.createdAt.toISOString(),
+    updatedAt: release.updatedAt.toISOString(),
+  };
+}
+

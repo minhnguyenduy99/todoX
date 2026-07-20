@@ -12,6 +12,8 @@ import {
 } from '../common/resolve-todo-service';
 import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
+import type { ListTodosQuery } from '../common/release.dto';
+import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
@@ -51,8 +53,33 @@ export class TodosService {
     private readonly monitorsService: MonitorsService,
   ) {}
 
-  async findAll(): Promise<TodoDto[]> {
+  async findAll(filters?: ListTodosQuery): Promise<TodoDto[]> {
+    const where: Prisma.TodoWhereInput = {};
+
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    if (filters?.serviceId) {
+      where.serviceId = filters.serviceId;
+    } else if (filters?.serviceKeyName) {
+      where.service = { keyName: filters.serviceKeyName };
+    }
+
+    if (filters?.availableForRelease === true) {
+      where.NOT = {
+        releaseMemberships: {
+          some: {
+            release: {
+              status: { in: [...NON_TERMINAL_RELEASE_STATUSES] },
+            },
+          },
+        },
+      };
+    }
+
     const todos = await this.prisma.todo.findMany({
+      where,
       include: todoInclude,
       orderBy: { createdAt: 'desc' },
     });
