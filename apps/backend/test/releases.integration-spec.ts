@@ -80,7 +80,7 @@ describe('Releases API (integration)', () => {
       })
       .expect(201);
 
-    expect(response.body.status).toBe('not_started');
+    expect(response.body.status).toBe('in_progress');
     expect(response.body.members).toHaveLength(2);
 
     const members = await prisma.releaseMember.findMany({

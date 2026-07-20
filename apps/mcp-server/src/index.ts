@@ -428,12 +428,12 @@ const tools = [
   {
     name: 'update_release',
     description:
-      'Update a release: while not_started, append/remove todos or refresh content; on any non-successful release, attach or redeploy Jenkins URLs for non-successful member services.',
+      'Update a release: before deployments, append/remove todos or refresh content; attach/redeploy Jenkins URLs; or set status (successful completes/archives all members).',
     inputSchema: updateReleaseSchema,
   },
   {
     name: 'cancel_release',
-    description: 'Cancel a not_started draft release and free its member todos',
+    description: 'Cancel a release that has no deployments yet and free its member todos',
     inputSchema: releaseIdParamSchema,
   },
   {
@@ -596,6 +596,7 @@ function createMcpServer(): Server {
             todoIdsToAdd: a.todoIdsToAdd as string[] | undefined,
             todoIdsToRemove: a.todoIdsToRemove as string[] | undefined,
             deployments: a.deployments as UpdateReleaseDto['deployments'],
+            status: a.status as UpdateReleaseDto['status'],
           });
           break;
         case 'cancel_release':

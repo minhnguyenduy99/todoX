@@ -173,7 +173,7 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `create_release` | Create a staging/prod release from eligible todo IDs (optional deploy URLs) |
 | `list_releases` | List releases with members and deployments |
 | `get_release` | Get a release by ID |
-| `update_release` | Draft append/remove/content while `not_started`, or attach/redeploy Jenkins URLs |
+| `update_release` | Draft append/remove/content while `not_started`, attach/redeploy Jenkins URLs, or set `status` (`successful` completes/archives members) |
 | `cancel_release` | Cancel a `not_started` draft release |
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.

@@ -14,6 +14,7 @@ import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
 import type { ListTodosQuery } from '../common/release.dto';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
+import { ReleasesService } from '../releases/releases.service';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
@@ -51,6 +52,7 @@ export class TodosService {
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly monitorsService: MonitorsService,
+    private readonly releasesService: ReleasesService,
   ) {}
 
   async findAll(filters?: ListTodosQuery): Promise<TodoDto[]> {
@@ -140,6 +142,7 @@ export class TodosService {
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
+    const previous = await this.prisma.todo.findUnique({ where: { id } });
     const {
       monitor,
       pullRequests,
@@ -201,6 +204,11 @@ export class TodosService {
 
     const result = toTodoDto(todo!);
     this.events.broadcast('todo.updated', result);
+
+    if (dto.status !== undefined && dto.status !== previous?.status) {
+      await this.releasesService.recomputeReleasesForTodo(id);
+    }
+
     return result;
   }
 

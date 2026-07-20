@@ -2,11 +2,13 @@ import {
   MonitorResultStatus,
   ReleaseDeploymentStatus,
   ReleaseStatus,
+  ReleaseType,
   type MonitorResult,
 } from '@todo-platform/shared-types';
 import {
   aggregateReleaseStatus,
   mapMonitorResultToDeploymentStatus,
+  resolveServiceOutcomes,
   shouldApplyFirstSuccessSideEffect,
 } from './release-deployment-status-sync';
 
@@ -53,13 +55,28 @@ describe('release-deployment-status-sync', () => {
       ).toBe(ReleaseStatus.SUCCESSFUL);
     });
 
-    it('returns partial_success for mixed terminal outcomes', () => {
+    it('returns partial_success when at least one service succeeds but not all', () => {
+      expect(
+        aggregateReleaseStatus(
+          [a, b],
+          new Map([[a, ReleaseDeploymentStatus.SUCCESSFUL]]),
+        ),
+      ).toBe(ReleaseStatus.PARTIAL_SUCCESS);
       expect(
         aggregateReleaseStatus(
           [a, b],
           new Map([
             [a, ReleaseDeploymentStatus.SUCCESSFUL],
             [b, ReleaseDeploymentStatus.FAILED],
+          ]),
+        ),
+      ).toBe(ReleaseStatus.PARTIAL_SUCCESS);
+      expect(
+        aggregateReleaseStatus(
+          [a, b],
+          new Map([
+            [a, ReleaseDeploymentStatus.SUCCESSFUL],
+            [b, ReleaseDeploymentStatus.IN_PROGRESS],
           ]),
         ),
       ).toBe(ReleaseStatus.PARTIAL_SUCCESS);
@@ -77,29 +94,23 @@ describe('release-deployment-status-sync', () => {
       ).toBe(ReleaseStatus.FAILED);
     });
 
-    it('stays in_progress when a member service has no deployment', () => {
-      expect(
-        aggregateReleaseStatus(
-          [a, b],
-          new Map([[a, ReleaseDeploymentStatus.SUCCESSFUL]]),
-        ),
-      ).toBe(ReleaseStatus.IN_PROGRESS);
-    });
-
-    it('returns not_started when no deployments exist', () => {
+    it('stays in_progress when no services have succeeded yet', () => {
       expect(aggregateReleaseStatus([a, b], new Map())).toBe(
-        ReleaseStatus.NOT_STARTED,
+        ReleaseStatus.IN_PROGRESS,
       );
-    });
-
-    it('stays in_progress while any deployment is non-terminal', () => {
       expect(
         aggregateReleaseStatus(
           [a, b],
           new Map([
-            [a, ReleaseDeploymentStatus.SUCCESSFUL],
+            [a, ReleaseDeploymentStatus.FAILED],
             [b, ReleaseDeploymentStatus.IN_PROGRESS],
           ]),
+        ),
+      ).toBe(ReleaseStatus.IN_PROGRESS);
+      expect(
+        aggregateReleaseStatus(
+          [a, b],
+          new Map([[a, ReleaseDeploymentStatus.PENDING]]),
         ),
       ).toBe(ReleaseStatus.IN_PROGRESS);
     });
@@ -131,6 +142,52 @@ describe('release-deployment-status-sync', () => {
           ReleaseDeploymentStatus.FAILED,
         ),
       ).toBe(false);
+    });
+  });
+
+  describe('resolveServiceOutcomes', () => {
+    const a = 'svc-a';
+    const b = 'svc-b';
+
+    it('treats all staging member todos COMPLETED as service success', () => {
+      const outcomes = resolveServiceOutcomes({
+        releaseType: ReleaseType.STAGING,
+        memberServiceIds: [a, b],
+        deploymentsByServiceId: new Map(),
+        membersByServiceId: new Map([
+          [a, { activeStatuses: ['COMPLETED'], archivedCount: 0 }],
+          [b, { activeStatuses: ['COMPLETED'], archivedCount: 0 }],
+        ]),
+      });
+      expect(aggregateReleaseStatus([a, b], outcomes)).toBe(ReleaseStatus.SUCCESSFUL);
+    });
+
+    it('becomes partial_success when only some staging services are COMPLETED', () => {
+      const outcomes = resolveServiceOutcomes({
+        releaseType: ReleaseType.STAGING,
+        memberServiceIds: [a, b],
+        deploymentsByServiceId: new Map(),
+        membersByServiceId: new Map([
+          [a, { activeStatuses: ['COMPLETED'], archivedCount: 0 }],
+          [b, { activeStatuses: ['WAIT_FOR_STAGING'], archivedCount: 0 }],
+        ]),
+      });
+      expect(aggregateReleaseStatus([a, b], outcomes)).toBe(
+        ReleaseStatus.PARTIAL_SUCCESS,
+      );
+    });
+
+    it('treats fully archived prod members as service success', () => {
+      const outcomes = resolveServiceOutcomes({
+        releaseType: ReleaseType.PROD,
+        memberServiceIds: [a, b],
+        deploymentsByServiceId: new Map(),
+        membersByServiceId: new Map([
+          [a, { activeStatuses: [], archivedCount: 1 }],
+          [b, { activeStatuses: [], archivedCount: 2 }],
+        ]),
+      });
+      expect(aggregateReleaseStatus([a, b], outcomes)).toBe(ReleaseStatus.SUCCESSFUL);
     });
   });
 });

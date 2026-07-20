@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import {
   ReleaseStatus as PrismaReleaseStatus,
@@ -11,6 +13,8 @@ import {
 } from '@prisma/client';
 import {
   MonitorType,
+  ReleaseDeploymentStatus,
+  ReleaseStatus,
   ReleaseType,
   type CreateReleaseDto,
   type ReleaseDto,
@@ -18,6 +22,10 @@ import {
 } from '@todo-platform/shared-types';
 import { toReleaseDto, toTodoDto } from '../common/mappers';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
+import {
+  aggregateReleaseStatus,
+  resolveServiceOutcomes,
+} from '../common/release-deployment-status-sync';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,6 +56,7 @@ export class ReleasesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
+    @Inject(forwardRef(() => MonitorsService))
     private readonly monitorsService: MonitorsService,
   ) {}
 
@@ -77,9 +86,7 @@ export class ReleasesService {
           releaseDate: dto.releaseDate,
           content: dto.content,
           type: dto.type,
-          status: dto.deployments?.length
-            ? PrismaReleaseStatus.in_progress
-            : PrismaReleaseStatus.not_started,
+          status: PrismaReleaseStatus.in_progress,
         },
       });
 
@@ -138,119 +145,125 @@ export class ReleasesService {
       (dto.todoIdsToAdd?.length ?? 0) > 0 || (dto.todoIdsToRemove?.length ?? 0) > 0;
     const hasContentChange = dto.content !== undefined;
     const hasDeployments = (dto.deployments?.length ?? 0) > 0;
+    const hasStatusChange = dto.status !== undefined;
 
     if (hasMembershipChange || hasContentChange) {
-      if (existing.status !== PrismaReleaseStatus.not_started) {
+      if (existing.deployments.length > 0) {
         throw new ConflictException(
-          'Membership and content can only be changed while status is not_started',
+          'Membership and content can only be changed before deployments are attached',
+        );
+      }
+      if (
+        existing.status === PrismaReleaseStatus.successful ||
+        existing.status === PrismaReleaseStatus.failed
+      ) {
+        throw new ConflictException(
+          'Membership and content cannot be changed on a terminal release',
         );
       }
     }
 
-    if (!hasMembershipChange && !hasContentChange && !hasDeployments) {
+    if (!hasMembershipChange && !hasContentChange && !hasDeployments && !hasStatusChange) {
       return toReleaseDto(existing);
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      if (dto.todoIdsToRemove?.length) {
-        const removeIds = [...new Set(dto.todoIdsToRemove)];
-        await tx.releaseMember.deleteMany({
-          where: { releaseId: id, todoId: { in: removeIds } },
-        });
-      }
-
-      if (dto.todoIdsToAdd?.length) {
-        const addIds = [...new Set(dto.todoIdsToAdd)];
-        const todos = await this.loadAndValidateTodos(addIds, existing.type as ReleaseType, {
-          tx,
-          excludeReleaseId: id,
-        });
-        await tx.releaseMember.createMany({
-          data: todos.map((todo) => ({
-            releaseId: id,
-            todoId: todo.id,
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      if (hasContentChange) {
-        await tx.release.update({
-          where: { id },
-          data: { content: dto.content },
-        });
-      }
-
-      if (hasDeployments) {
-        const members = await tx.releaseMember.findMany({
-          where: { releaseId: id },
-          include: { todo: true },
-        });
-        const memberServiceIds = new Set(
-          members
-            .map((m) => m.todo.serviceId)
-            .filter((serviceId): serviceId is string => serviceId != null),
-        );
-
-        for (const deployment of dto.deployments!) {
-          const serviceId = await this.resolveDeploymentServiceId(tx, deployment);
-          if (!memberServiceIds.has(serviceId)) {
-            throw new BadRequestException(
-              `Deployment service ${serviceId} is not a member service of this release`,
-            );
-          }
-
-          const existingDeployment = await tx.releaseDeployment.findUnique({
-            where: {
-              releaseId_serviceId: { releaseId: id, serviceId },
-            },
-          });
-
-          if (existingDeployment?.status === 'successful') {
-            throw new BadRequestException(
-              `Cannot redeploy already-successful service ${serviceId}`,
-            );
-          }
-
-          await tx.releaseDeployment.upsert({
-            where: {
-              releaseId_serviceId: { releaseId: id, serviceId },
-            },
-            create: {
-              releaseId: id,
-              serviceId,
-              environment: existing.type,
-              jobUrl: deployment.jobUrl,
-              buildNumber: deployment.buildNumber,
-              status: 'pending',
-            },
-            update: {
-              jobUrl: deployment.jobUrl,
-              buildNumber: deployment.buildNumber,
-              status: 'pending',
-            },
+    if (hasMembershipChange || hasContentChange || hasDeployments) {
+      await this.prisma.$transaction(async (tx) => {
+        if (dto.todoIdsToRemove?.length) {
+          const removeIds = [...new Set(dto.todoIdsToRemove)];
+          await tx.releaseMember.deleteMany({
+            where: { releaseId: id, todoId: { in: removeIds } },
           });
         }
 
-        await tx.release.update({
-          where: { id },
-          data: { status: PrismaReleaseStatus.in_progress },
-        });
-      }
+        if (dto.todoIdsToAdd?.length) {
+          const addIds = [...new Set(dto.todoIdsToAdd)];
+          const todos = await this.loadAndValidateTodos(addIds, existing.type as ReleaseType, {
+            tx,
+            excludeReleaseId: id,
+          });
+          await tx.releaseMember.createMany({
+            data: todos.map((todo) => ({
+              releaseId: id,
+              todoId: todo.id,
+            })),
+            skipDuplicates: true,
+          });
+        }
 
-      return tx.release.findUniqueOrThrow({
-        where: { id },
-        include: releaseInclude,
+        if (hasContentChange) {
+          await tx.release.update({
+            where: { id },
+            data: { content: dto.content },
+          });
+        }
+
+        if (hasDeployments) {
+          const members = await tx.releaseMember.findMany({
+            where: { releaseId: id },
+            include: { todo: true },
+          });
+          const memberServiceIds = new Set(
+            members
+              .map((m) => m.todo.serviceId)
+              .filter((serviceId): serviceId is string => serviceId != null),
+          );
+
+          for (const deployment of dto.deployments!) {
+            const serviceId = await this.resolveDeploymentServiceId(tx, deployment);
+            if (!memberServiceIds.has(serviceId)) {
+              throw new BadRequestException(
+                `Deployment service ${serviceId} is not a member service of this release`,
+              );
+            }
+
+            const existingDeployment = await tx.releaseDeployment.findUnique({
+              where: {
+                releaseId_serviceId: { releaseId: id, serviceId },
+              },
+            });
+
+            if (existingDeployment?.status === 'successful') {
+              throw new BadRequestException(
+                `Cannot redeploy already-successful service ${serviceId}`,
+              );
+            }
+
+            await tx.releaseDeployment.upsert({
+              where: {
+                releaseId_serviceId: { releaseId: id, serviceId },
+              },
+              create: {
+                releaseId: id,
+                serviceId,
+                environment: existing.type,
+                jobUrl: deployment.jobUrl,
+                buildNumber: deployment.buildNumber,
+                status: 'pending',
+              },
+              update: {
+                jobUrl: deployment.jobUrl,
+                buildNumber: deployment.buildNumber,
+                status: 'pending',
+              },
+            });
+          }
+
+        }
       });
-    });
 
-    if (hasDeployments) {
-      const serviceIds = await this.resolveDeploymentServiceIds(dto.deployments!);
-      await this.startMonitorsForServices(
-        id,
-        existing.type as ReleaseType,
-        serviceIds,
-      );
+      if (hasDeployments) {
+        const serviceIds = await this.resolveDeploymentServiceIds(dto.deployments!);
+        await this.startMonitorsForServices(
+          id,
+          existing.type as ReleaseType,
+          serviceIds,
+        );
+      }
+    }
+
+    if (hasStatusChange) {
+      await this.applyManualStatus(id, dto.status!);
     }
 
     const full = await this.getReleaseOrThrow(id);
@@ -268,10 +281,261 @@ export class ReleasesService {
     return result;
   }
 
+  /** Recompute release status after a member todo changes (plan R9 + todo progress). */
+  async recomputeReleasesForTodo(todoId: string): Promise<void> {
+    const memberships = await this.prisma.releaseMember.findMany({
+      where: { todoId },
+      select: { releaseId: true },
+    });
+    const releaseIds = [...new Set(memberships.map((m) => m.releaseId))];
+    for (const releaseId of releaseIds) {
+      await this.reaggregateAndBroadcast(releaseId);
+    }
+  }
+
+  async onDeploymentMonitorResult(
+    releaseDeploymentId: string,
+    previousStatus: ReleaseDeploymentStatus,
+    nextStatus: ReleaseDeploymentStatus,
+  ): Promise<void> {
+    const deployment = await this.prisma.releaseDeployment.findUnique({
+      where: { id: releaseDeploymentId },
+      include: { release: true },
+    });
+    if (!deployment) return;
+
+    await this.prisma.releaseDeployment.update({
+      where: { id: releaseDeploymentId },
+      data: { status: nextStatus },
+    });
+
+    if (
+      nextStatus === ReleaseDeploymentStatus.SUCCESSFUL &&
+      previousStatus !== ReleaseDeploymentStatus.SUCCESSFUL
+    ) {
+      if (deployment.release.type === 'staging') {
+        await this.completeStagingTodosForService(
+          deployment.releaseId,
+          deployment.serviceId,
+        );
+      } else if (deployment.release.type === 'prod') {
+        await this.archiveProdTodosForService(
+          deployment.releaseId,
+          deployment.serviceId,
+        );
+      }
+    }
+
+    await this.reaggregateAndBroadcast(deployment.releaseId);
+  }
+
+  private async applyManualStatus(
+    releaseId: string,
+    status: ReleaseStatus,
+  ): Promise<void> {
+    const release = await this.getReleaseOrThrow(releaseId);
+
+    if (status === ReleaseStatus.SUCCESSFUL) {
+      if (release.type === 'staging') {
+        const serviceIds = [
+          ...new Set(
+            release.members
+              .map((m) => m.todo.serviceId)
+              .filter((id): id is string => id != null),
+          ),
+        ];
+        for (const serviceId of serviceIds) {
+          await this.completeStagingTodosForService(releaseId, serviceId);
+        }
+      } else {
+        const serviceIds = [
+          ...new Set(
+            release.members
+              .map((m) => m.todo.serviceId)
+              .filter((id): id is string => id != null),
+          ),
+        ];
+        for (const serviceId of serviceIds) {
+          await this.archiveProdTodosForService(releaseId, serviceId);
+        }
+      }
+
+      await this.prisma.releaseDeployment.updateMany({
+        where: { releaseId },
+        data: { status: 'successful' },
+      });
+    }
+
+    await this.prisma.release.update({
+      where: { id: releaseId },
+      data: { status },
+    });
+  }
+
+  async completeStagingTodosForService(
+    releaseId: string,
+    serviceId: string,
+  ): Promise<void> {
+    const members = await this.prisma.releaseMember.findMany({
+      where: { releaseId },
+      include: { todo: true },
+    });
+    const todoIds = members
+      .filter((member) => member.todo.serviceId === serviceId)
+      .map((member) => member.todoId);
+
+    if (!todoIds.length) return;
+
+    await this.prisma.todo.updateMany({
+      where: { id: { in: todoIds } },
+      data: { status: 'COMPLETED' },
+    });
+
+    await this.broadcastTodosUpdated(todoIds);
+  }
+
+  async archiveProdTodosForService(
+    releaseId: string,
+    serviceId: string,
+  ): Promise<void> {
+    const members = await this.prisma.releaseMember.findMany({
+      where: { releaseId },
+      include: {
+        todo: {
+          include: {
+            associatedTickets: true,
+            pullRequests: true,
+          },
+        },
+      },
+    });
+
+    const toArchive = members.filter(
+      (member) => member.todo.serviceId === serviceId,
+    );
+
+    for (const member of toArchive) {
+      const todo = member.todo;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.completedTodo.create({
+          data: {
+            originalTodoId: todo.id,
+            releaseId,
+            title: todo.title,
+            description: todo.description,
+            status: todo.status,
+            serviceId: todo.serviceId,
+            associatedTickets: todo.associatedTickets.map((ticket) => ({
+              id: ticket.id,
+              title: ticket.title,
+              type: ticket.type,
+              link: ticket.link,
+            })) as Prisma.InputJsonValue,
+            pullRequests: todo.pullRequests.map((pr) => ({
+              id: pr.id,
+              number: pr.number,
+              title: pr.title,
+              status: pr.status,
+              url: pr.url,
+            })) as Prisma.InputJsonValue,
+            createdAt: todo.createdAt,
+            updatedAt: todo.updatedAt,
+          },
+        });
+        await tx.todo.delete({ where: { id: todo.id } });
+      });
+      this.events.broadcast('todo.deleted', { id: todo.id });
+    }
+  }
+
+  async reaggregateAndBroadcast(releaseId: string): Promise<ReleaseDto | null> {
+    const release = await this.prisma.release.findUnique({
+      where: { id: releaseId },
+      include: {
+        members: { include: { todo: { include: { service: true } } } },
+        deployments: { include: { service: true, monitor: true } },
+        completedTodos: { include: { service: true } },
+      },
+    });
+    if (!release) return null;
+
+    const memberServiceIds = [
+      ...new Set(
+        [
+          ...release.members
+            .map((m) => m.todo.serviceId)
+            .filter((id): id is string => id != null),
+          ...release.completedTodos
+            .map((c) => c.serviceId)
+            .filter((id): id is string => id != null),
+        ],
+      ),
+    ];
+
+    const deploymentsByServiceId = new Map(
+      release.deployments.map((d) => [
+        d.serviceId,
+        d.status as ReleaseDeploymentStatus,
+      ]),
+    );
+
+    const membersByServiceId = new Map<
+      string,
+      { activeStatuses: string[]; archivedCount: number }
+    >();
+
+    for (const member of release.members) {
+      if (!member.todo.serviceId) continue;
+      const snapshot = membersByServiceId.get(member.todo.serviceId) ?? {
+        activeStatuses: [],
+        archivedCount: 0,
+      };
+      snapshot.activeStatuses.push(member.todo.status);
+      membersByServiceId.set(member.todo.serviceId, snapshot);
+    }
+
+    for (const archived of release.completedTodos) {
+      if (!archived.serviceId) continue;
+      const snapshot = membersByServiceId.get(archived.serviceId) ?? {
+        activeStatuses: [],
+        archivedCount: 0,
+      };
+      snapshot.archivedCount += 1;
+      membersByServiceId.set(archived.serviceId, snapshot);
+    }
+
+    const outcomes = resolveServiceOutcomes({
+      releaseType: release.type as ReleaseType,
+      memberServiceIds,
+      deploymentsByServiceId,
+      membersByServiceId,
+    });
+
+    const nextReleaseStatus = aggregateReleaseStatus(memberServiceIds, outcomes);
+
+    const updated = await this.prisma.release.update({
+      where: { id: releaseId },
+      data: { status: nextReleaseStatus },
+      include: releaseInclude,
+    });
+
+    const dto = toReleaseDto(updated);
+    this.events.broadcast('release.updated', dto);
+    return dto;
+  }
+
   async cancel(id: string): Promise<void> {
     const existing = await this.getReleaseOrThrow(id);
-    if (existing.status !== PrismaReleaseStatus.not_started) {
-      throw new ConflictException('Only not_started releases can be cancelled');
+    if (existing.deployments.length > 0) {
+      throw new ConflictException(
+        'Only releases without deployments can be cancelled',
+      );
+    }
+    if (
+      existing.status === PrismaReleaseStatus.successful ||
+      existing.status === PrismaReleaseStatus.failed
+    ) {
+      throw new ConflictException('Terminal releases cannot be cancelled');
     }
 
     const memberTodoIds = existing.members.map((m) => m.todoId);

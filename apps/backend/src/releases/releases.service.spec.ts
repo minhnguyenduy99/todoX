@@ -4,7 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { ReleaseType, TodoStatus } from '@todo-platform/shared-types';
+import { ReleaseStatus, ReleaseType, TodoStatus } from '@todo-platform/shared-types';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +30,7 @@ describe('ReleasesService', () => {
       create: jest.Mock;
       findUnique: jest.Mock;
       upsert: jest.Mock;
+      updateMany: jest.Mock;
     };
     todo: {
       findMany: jest.Mock;
@@ -76,7 +77,7 @@ describe('ReleasesService', () => {
     releaseDate: '2026-07-20',
     content: 'Release notes',
     type: 'staging',
-    status: 'not_started',
+    status: 'in_progress',
     createdAt: new Date('2026-07-20'),
     updatedAt: new Date('2026-07-20'),
     members: [
@@ -106,6 +107,7 @@ describe('ReleasesService', () => {
         create: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn(),
+        updateMany: jest.fn(),
       },
       todo: {
         findMany: jest.fn(),
@@ -133,7 +135,7 @@ describe('ReleasesService', () => {
     service = module.get(ReleasesService);
   });
 
-  it('creates a staging release with eligible todos as not_started', async () => {
+  it('creates a staging release with eligible todos as in_progress', async () => {
     prisma.todo.findMany
       .mockResolvedValueOnce([todoA, todoB])
       .mockResolvedValueOnce([todoA, todoB]);
@@ -148,7 +150,12 @@ describe('ReleasesService', () => {
       todoIds: ['todo-a', 'todo-b'],
     });
 
-    expect(result.status).toBe('not_started');
+    expect(result.status).toBe('in_progress');
+    expect(prisma.release.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'in_progress' }),
+      }),
+    );
     expect(result.members).toHaveLength(2);
     expect(prisma.releaseMember.createMany).toHaveBeenCalled();
     expect(events.broadcast).toHaveBeenCalledWith('release.created', expect.any(Object));
@@ -218,7 +225,7 @@ describe('ReleasesService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('appends a todo while not_started', async () => {
+  it('appends a todo before deployments are attached', async () => {
     const todoC = { ...todoA, id: 'todo-c', title: 'Todo C', releaseMemberships: [] };
     const withC = {
       ...baseRelease,
@@ -240,10 +247,10 @@ describe('ReleasesService', () => {
     expect(prisma.releaseMember.createMany).toHaveBeenCalled();
   });
 
-  it('rejects membership changes after in_progress', async () => {
+  it('rejects membership changes after deployments are attached', async () => {
     prisma.release.findUnique.mockResolvedValue({
       ...baseRelease,
-      status: 'in_progress',
+      deployments: [{ id: 'dep-1', serviceId: 'svc-a', status: 'pending' }],
     });
 
     await expect(
@@ -251,7 +258,7 @@ describe('ReleasesService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('removes a member and cancels draft while not_started', async () => {
+  it('removes a member and cancels draft before deployments', async () => {
     const afterRemove = {
       ...baseRelease,
       members: [baseRelease.members[0]],
@@ -309,5 +316,76 @@ describe('ReleasesService', () => {
   it('throws NotFoundException for missing release', async () => {
     prisma.release.findUnique.mockResolvedValue(null);
     await expect(service.findOne('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('manual successful status completes all staging member todos', async () => {
+    const completedMembers = [
+      { todoId: 'todo-a', todo: { ...todoA, status: 'COMPLETED' } },
+      { todoId: 'todo-b', todo: { ...todoB, status: 'COMPLETED' } },
+    ];
+    const successfulRelease = {
+      ...baseRelease,
+      status: 'successful',
+      members: completedMembers,
+    };
+
+    prisma.release.findUnique
+      .mockResolvedValueOnce(baseRelease)
+      .mockResolvedValueOnce(baseRelease)
+      .mockResolvedValueOnce(successfulRelease);
+    prisma.releaseMember.findMany.mockResolvedValue([
+      { todoId: 'todo-a', todo: todoA },
+      { todoId: 'todo-b', todo: todoB },
+    ]);
+    prisma.todo.updateMany.mockResolvedValue({ count: 2 });
+    prisma.todo.findMany.mockResolvedValue([
+      { ...todoA, status: 'COMPLETED', monitor: null, subtasks: [], pullRequests: [], associatedTickets: [], deployedEnvironments: [] },
+      { ...todoB, status: 'COMPLETED', monitor: null, subtasks: [], pullRequests: [], associatedTickets: [], deployedEnvironments: [] },
+    ]);
+    prisma.releaseDeployment.updateMany.mockResolvedValue({ count: 0 });
+    prisma.release.update.mockResolvedValue(successfulRelease);
+
+    const result = await service.update('rel-1', {
+      status: ReleaseStatus.SUCCESSFUL,
+    });
+
+    expect(prisma.todo.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['todo-a', 'todo-b'] } },
+      data: { status: 'COMPLETED' },
+    });
+    expect(prisma.release.update).toHaveBeenCalledWith({
+      where: { id: 'rel-1' },
+      data: { status: ReleaseStatus.SUCCESSFUL },
+    });
+    expect(result.status).toBe('successful');
+  });
+
+  it('recomputes release status when member todos become COMPLETED', async () => {
+    const membersCompleted = {
+      ...baseRelease,
+      status: 'in_progress',
+      members: [
+        { todoId: 'todo-a', todo: { ...todoA, status: 'COMPLETED' } },
+        { todoId: 'todo-b', todo: { ...todoB, status: 'COMPLETED' } },
+      ],
+    };
+    const afterAgg = { ...membersCompleted, status: 'successful' };
+
+    prisma.releaseMember.findMany.mockResolvedValue([{ releaseId: 'rel-1' }]);
+    prisma.release.findUnique.mockResolvedValue(membersCompleted);
+    prisma.release.update.mockResolvedValue(afterAgg);
+
+    await service.recomputeReleasesForTodo('todo-a');
+
+    expect(prisma.release.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'rel-1' },
+        data: { status: ReleaseStatus.SUCCESSFUL },
+      }),
+    );
+    expect(events.broadcast).toHaveBeenCalledWith(
+      'release.updated',
+      expect.objectContaining({ status: 'successful' }),
+    );
   });
 });

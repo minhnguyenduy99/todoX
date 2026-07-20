@@ -348,6 +348,8 @@ export interface UpdateReleaseDto {
   todoIdsToAdd?: string[];
   todoIdsToRemove?: string[];
   deployments?: ReleaseDeploymentInput[];
+  /** Manual status override. Setting successful completes/archives all member todos. */
+  status?: ReleaseStatus;
 }
 
 export interface ListTodosParams {

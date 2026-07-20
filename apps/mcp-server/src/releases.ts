@@ -1,4 +1,4 @@
-import { ReleaseType, TodoStatus } from '@todo-platform/shared-types';
+import { ReleaseType, ReleaseStatus, TodoStatus } from '@todo-platform/shared-types';
 
 export const releaseDeploymentInputSchema = {
   type: 'object' as const,
@@ -49,7 +49,7 @@ export const createReleaseSchema = {
       type: 'array',
       items: releaseDeploymentInputSchema,
       description:
-        'Optional Jenkins deployment entries; when provided, monitoring starts and status becomes in_progress',
+        'Optional Jenkins deployment entries; when provided, monitoring starts',
     },
   },
   required: ['type', 'releaseDate', 'content', 'todoIds'],
@@ -61,23 +61,29 @@ export const updateReleaseSchema = {
     id: { type: 'string', description: 'Release ID' },
     content: {
       type: 'string',
-      description: 'Replace release content (only while not_started)',
+      description: 'Replace release content (only before deployments are attached)',
     },
     todoIdsToAdd: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Append eligible todos (only while not_started)',
+      description: 'Append eligible todos (only before deployments are attached)',
     },
     todoIdsToRemove: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Remove member todos (only while not_started)',
+      description: 'Remove member todos (only before deployments are attached)',
     },
     deployments: {
       type: 'array',
       items: releaseDeploymentInputSchema,
       description:
         'Attach or redeploy Jenkins URLs for non-successful member services (allowed on non-successful releases)',
+    },
+    status: {
+      type: 'string',
+      enum: Object.values(ReleaseStatus),
+      description:
+        'Manually set release status. Setting successful completes all staging member todos (or archives prod members).',
     },
   },
   required: ['id'],

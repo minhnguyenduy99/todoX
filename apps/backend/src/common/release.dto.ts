@@ -15,6 +15,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  ReleaseStatus,
   ReleaseType,
   TodoStatus,
 } from '@todo-platform/shared-types';
@@ -98,6 +99,11 @@ export class UpdateReleaseBody {
   @ValidateNested({ each: true })
   @Type(() => ReleaseDeploymentBody)
   deployments?: ReleaseDeploymentBody[];
+
+  @ApiPropertyOptional({ enum: ReleaseStatus })
+  @IsOptional()
+  @IsEnum(ReleaseStatus)
+  status?: ReleaseStatus;
 }
 
 export class ListTodosQuery {

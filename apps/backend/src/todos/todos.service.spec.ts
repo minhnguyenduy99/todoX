@@ -4,6 +4,7 @@ import { TodosService } from './todos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
+import { ReleasesService } from '../releases/releases.service';
 import { TodoStatus } from '@todo-platform/shared-types';
 
 describe('TodosService', () => {
@@ -30,6 +31,9 @@ describe('TodosService', () => {
   let monitorsService: {
     createForTodo: jest.Mock;
     update: jest.Mock;
+  };
+  let releasesService: {
+    recomputeReleasesForTodo: jest.Mock;
   };
 
   const mockTodo = {
@@ -69,6 +73,9 @@ describe('TodosService', () => {
       createForTodo: jest.fn(),
       update: jest.fn(),
     };
+    releasesService = {
+      recomputeReleasesForTodo: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,6 +83,7 @@ describe('TodosService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
         { provide: MonitorsService, useValue: monitorsService },
+        { provide: ReleasesService, useValue: releasesService },
       ],
     }).compile();
 
@@ -106,10 +114,12 @@ describe('TodosService', () => {
     const updatedTodo = { ...mockTodo, status: 'COMPLETED' };
     prisma.todo.findUnique
       .mockResolvedValueOnce(mockTodo)
+      .mockResolvedValueOnce(mockTodo)
       .mockResolvedValueOnce(updatedTodo);
     prisma.todo.update.mockResolvedValue(updatedTodo);
     const result = await service.update('todo-1', { status: TodoStatus.COMPLETED });
     expect(result.status).toBe(TodoStatus.COMPLETED);
     expect(events.broadcast).toHaveBeenCalledWith('todo.updated', expect.any(Object));
+    expect(releasesService.recomputeReleasesForTodo).toHaveBeenCalledWith('todo-1');
   });
 });

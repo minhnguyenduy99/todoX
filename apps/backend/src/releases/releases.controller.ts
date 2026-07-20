@@ -43,7 +43,7 @@ export class ReleasesController {
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Cancel a not_started release' })
+  @ApiOperation({ summary: 'Cancel a release that has no deployments yet' })
   cancel(@Param('id') id: string) {
     return this.releasesService.cancel(id);
   }

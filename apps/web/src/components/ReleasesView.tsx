@@ -47,15 +47,19 @@ export function ReleasesView() {
               onClick={() => setSelectedRelease(release)}
             >
               <div className="release-summary-top">
-                <span className="release-summary-date">{release.releaseDate}</span>
-                <span
-                  className={`badge ${
-                    release.type === ReleaseType.PROD ? 'badge-red' : 'badge-purple'
-                  }`}
-                >
-                  {release.type}
-                </span>
-                <span className={`badge ${releaseStatusColor(release.status)}`}>
+                <div className="release-summary-left">
+                  <span className="release-summary-date">{release.releaseDate}</span>
+                  <span
+                    className={
+                      release.type === ReleaseType.PROD
+                        ? 'release-type release-type-prod'
+                        : 'release-type release-type-staging'
+                    }
+                  >
+                    {release.type}
+                  </span>
+                </div>
+                <span className={`badge badge-sm ${releaseStatusColor(release.status)}`}>
                   {releaseStatusLabel(release.status)}
                 </span>
               </div>
@@ -82,6 +86,8 @@ function ReleasePanel({
   release: ReleaseDto;
   onClose: () => void;
 }) {
+  const [contentCopied, setContentCopied] = useState(false);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -89,6 +95,17 @@ function ReleasePanel({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  async function handleCopyContent() {
+    if (!release.content) return;
+    try {
+      await navigator.clipboard.writeText(release.content);
+      setContentCopied(true);
+      window.setTimeout(() => setContentCopied(false), 1500);
+    } catch {
+      // Clipboard access may be unavailable.
+    }
+  }
 
   return (
     <div className="subtask-panel-overlay" onClick={onClose}>
@@ -104,19 +121,6 @@ function ReleasePanel({
             <h2 id="release-panel-title" className="subtask-panel-title">
               {release.releaseDate}
             </h2>
-            <div className="release-summary-top">
-              <span
-                className={`badge ${
-                  release.type === ReleaseType.PROD ? 'badge-red' : 'badge-purple'
-                }`}
-              >
-                {release.type}
-              </span>
-              <span className={`badge ${releaseStatusColor(release.status)}`}>
-                {releaseStatusLabel(release.status)}
-              </span>
-            </div>
-            <p className="release-meta">Updated {formatDate(release.updatedAt)}</p>
           </div>
           <button type="button" className="subtask-panel-close" onClick={onClose} aria-label="Close">
             ×
@@ -125,7 +129,44 @@ function ReleasePanel({
 
         <div className="subtask-panel-body">
           <section className="subtask-panel-field">
-            <h3 className="subtask-panel-label">Content</h3>
+            <h3 className="subtask-panel-label">Type</h3>
+            <span
+              className={
+                release.type === ReleaseType.PROD
+                  ? 'release-type release-type-prod'
+                  : 'release-type release-type-staging'
+              }
+            >
+              {release.type}
+            </span>
+          </section>
+
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Status</h3>
+            <span className={`badge release-status-chip ${releaseStatusColor(release.status)}`}>
+              {releaseStatusLabel(release.status)}
+            </span>
+          </section>
+
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Updated</h3>
+            <p className="release-meta">{formatDate(release.updatedAt)}</p>
+          </section>
+
+          <section className="subtask-panel-field">
+            <div className="release-field-heading">
+              <h3 className="subtask-panel-label">Content</h3>
+              {release.content ? (
+                <button
+                  type="button"
+                  className="release-copy-btn"
+                  onClick={handleCopyContent}
+                  aria-label="Copy release content"
+                >
+                  {contentCopied ? 'Copied!' : 'Copy'}
+                </button>
+              ) : null}
+            </div>
             {release.content ? (
               <div className="subtask-panel-description-content">
                 <pre className="release-content">{release.content}</pre>
