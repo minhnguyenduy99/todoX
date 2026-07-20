@@ -30,7 +30,7 @@ body {
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -881,6 +881,45 @@ a.env-chip:hover {
   color: var(--text);
 }
 
+.list-with-releases {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.list-with-releases-main {
+  min-width: 0;
+}
+
+.list-with-releases-aside {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.releases-panel-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.releases-panel-status,
+.releases-panel-empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.releases-panel-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0;
+}
+
 .releases-view {
   display: flex;
   flex-direction: column;
@@ -891,7 +930,7 @@ a.env-chip:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .release-card-header {
@@ -906,7 +945,7 @@ a.env-chip:hover {
 }
 
 .release-card-title-row h2 {
-  font-size: 1.125rem;
+  font-size: 1rem;
   margin: 0;
 }
 
@@ -919,7 +958,7 @@ a.env-chip:hover {
 .release-content {
   white-space: pre-wrap;
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   margin: 0 0 0.5rem;
   color: var(--text);
@@ -936,11 +975,11 @@ a.env-chip:hover {
 }
 
 .release-section {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 .release-section h3 {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -963,7 +1002,7 @@ a.env-chip:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .release-service-chip {
@@ -972,6 +1011,17 @@ a.env-chip:hover {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.125rem 0.5rem;
+}
+
+@media (max-width: 960px) {
+  .list-with-releases {
+    grid-template-columns: 1fr;
+  }
+
+  .list-with-releases-aside {
+    position: static;
+    max-height: none;
+  }
 }
 
 .loading {

@@ -6,7 +6,7 @@ import { TodoListView } from './components/TodoListView';
 import { KanbanView } from './components/KanbanView';
 import { ReleasesView } from './components/ReleasesView';
 
-type ViewMode = 'list' | 'kanban' | 'releases';
+type ViewMode = 'list' | 'kanban';
 
 export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -15,8 +15,6 @@ export function App() {
     queryKey: ['todos'],
     queryFn: fetchTodos,
   });
-
-  const showTodoBoard = viewMode === 'list' || viewMode === 'kanban';
 
   return (
     <div className="app">
@@ -38,13 +36,6 @@ export function App() {
             >
               Kanban
             </button>
-            <button
-              type="button"
-              className={`view-toggle-btn${viewMode === 'releases' ? ' active' : ''}`}
-              onClick={() => setViewMode('releases')}
-            >
-              Releases
-            </button>
           </div>
           <div className="connection-status">
             <span className={`connection-dot ${connected ? 'connected' : ''}`} />
@@ -53,30 +44,42 @@ export function App() {
         </div>
       </header>
 
-      {viewMode === 'releases' ? (
-        <ReleasesView />
-      ) : (
-        <>
-          {error && (
-            <div className="error">
-              Failed to load todos:{' '}
-              {error instanceof Error ? error.message : 'Unknown error'}
-            </div>
-          )}
+      {error && (
+        <div className="error">
+          Failed to load todos:{' '}
+          {error instanceof Error ? error.message : 'Unknown error'}
+        </div>
+      )}
 
-          {isLoading && <div className="loading">Loading todos...</div>}
+      {isLoading && <div className="loading">Loading todos...</div>}
 
-          {!isLoading && todos && todos.length === 0 && (
-            <div className="empty-state">
-              <h2>No todos yet</h2>
-              <p>Create todos via the MCP server or REST API to see them here.</p>
-            </div>
-          )}
+      {!isLoading && viewMode === 'list' && (
+        <div className="list-with-releases">
+          <div className="list-with-releases-main">
+            {todos && todos.length === 0 ? (
+              <div className="empty-state">
+                <h2>No todos yet</h2>
+                <p>Create todos via the MCP server or REST API to see them here.</p>
+              </div>
+            ) : (
+              todos && <TodoListView todos={todos} />
+            )}
+          </div>
+          <aside className="list-with-releases-aside" aria-label="Releases">
+            <ReleasesView />
+          </aside>
+        </div>
+      )}
 
-          {showTodoBoard && todos && todos.length > 0 && (
-            viewMode === 'list' ? <TodoListView todos={todos} /> : <KanbanView todos={todos} />
-          )}
-        </>
+      {!isLoading && viewMode === 'kanban' && (
+        todos && todos.length === 0 ? (
+          <div className="empty-state">
+            <h2>No todos yet</h2>
+            <p>Create todos via the MCP server or REST API to see them here.</p>
+          </div>
+        ) : (
+          todos && <KanbanView todos={todos} />
+        )
       )}
     </div>
   );

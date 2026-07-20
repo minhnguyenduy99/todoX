@@ -13,32 +13,48 @@ export function ReleasesView() {
   });
 
   if (isLoading) {
-    return <div className="loading">Loading releases...</div>;
+    return (
+      <div className="releases-panel">
+        <h2 className="releases-panel-title">Releases</h2>
+        <div className="releases-panel-status">Loading releases...</div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="error">
-        Failed to load releases:{' '}
-        {error instanceof Error ? error.message : 'Unknown error'}
+      <div className="releases-panel">
+        <h2 className="releases-panel-title">Releases</h2>
+        <div className="error">
+          Failed to load releases:{' '}
+          {error instanceof Error ? error.message : 'Unknown error'}
+        </div>
       </div>
     );
   }
 
   if (!releases?.length) {
     return (
-      <div className="empty-state">
-        <h2>No releases yet</h2>
-        <p>Create releases via MCP or REST to track staging and prod deploys here.</p>
+      <div className="releases-panel">
+        <h2 className="releases-panel-title">Releases</h2>
+        <div className="releases-panel-empty">
+          <p>No releases yet</p>
+          <p className="release-muted">
+            Create releases via MCP or REST to track staging and prod deploys here.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="releases-view">
-      {releases.map((release) => (
-        <ReleaseCard key={release.id} release={release} />
-      ))}
+    <div className="releases-panel">
+      <h2 className="releases-panel-title">Releases</h2>
+      <div className="releases-view">
+        {releases.map((release) => (
+          <ReleaseCard key={release.id} release={release} />
+        ))}
+      </div>
     </div>
   );
 }
