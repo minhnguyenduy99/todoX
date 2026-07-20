@@ -58,7 +58,7 @@ export enum DeploymentStatus {
 }
 
 export interface DeploymentInfo {
-  env: DeployedEnvironmentName;
+  env: DeployedEnvironmentName | 'prod';
   jobName: string;
   buildNumber: number;
   durationMs: number | null;
@@ -261,7 +261,7 @@ export interface GitHubPrMonitorConfig {
 }
 
 export interface DeploymentMonitorConfig {
-  env: DeployedEnvironmentName;
+  env: DeployedEnvironmentName | 'prod';
   jobUrl: string;
   buildNumber: number;
 }

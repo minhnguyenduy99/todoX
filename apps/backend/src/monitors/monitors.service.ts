@@ -62,7 +62,7 @@ export class MonitorsService {
   }
 
   private async createMonitor(
-    owner: { subtaskId: string } | { todoId: string },
+    owner: { subtaskId: string } | { todoId: string } | { releaseDeploymentId: string },
     dto: CreateMonitorDto,
     options?: { silent?: boolean },
   ): Promise<MonitorDto> {
@@ -90,6 +90,28 @@ export class MonitorsService {
       this.events.broadcast('monitor.created', result);
     }
     return result;
+  }
+
+  async createForReleaseDeployment(
+    releaseDeploymentId: string,
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
+    const deployment = await this.prisma.releaseDeployment.findUnique({
+      where: { id: releaseDeploymentId },
+    });
+    if (!deployment) {
+      throw new NotFoundException(`ReleaseDeployment ${releaseDeploymentId} not found`);
+    }
+
+    const existing = await this.prisma.monitor.findUnique({
+      where: { releaseDeploymentId },
+    });
+    if (existing) {
+      await this.remove(existing.id);
+    }
+
+    return this.createMonitor({ releaseDeploymentId }, dto, options);
   }
 
   async update(

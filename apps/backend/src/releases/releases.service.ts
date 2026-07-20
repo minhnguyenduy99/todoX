@@ -10,6 +10,7 @@ import {
   type Prisma,
 } from '@prisma/client';
 import {
+  MonitorType,
   ReleaseType,
   type CreateReleaseDto,
   type ReleaseDto,
@@ -18,7 +19,10 @@ import {
 import { toReleaseDto, toTodoDto } from '../common/mappers';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { EventsGateway } from '../events/events.gateway';
+import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+const DEFAULT_DEPLOY_CRON = '*/5 * * * *';
 
 const releaseInclude = {
   members: {
@@ -37,7 +41,6 @@ const releaseInclude = {
   },
 } satisfies Prisma.ReleaseInclude;
 
-
 type ReleaseWithRelations = Prisma.ReleaseGetPayload<{ include: typeof releaseInclude }>;
 
 @Injectable()
@@ -45,6 +48,7 @@ export class ReleasesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
+    private readonly monitorsService: MonitorsService,
   ) {}
 
   async findAll(): Promise<ReleaseDto[]> {
@@ -121,7 +125,13 @@ export class ReleasesService {
       });
     });
 
-    const result = toReleaseDto(release);
+    if (dto.deployments?.length) {
+      const serviceIds = await this.resolveDeploymentServiceIds(dto.deployments);
+      await this.startMonitorsForServices(release.id, dto.type, serviceIds);
+    }
+
+    const full = await this.getReleaseOrThrow(release.id);
+    const result = toReleaseDto(full);
     this.events.broadcast('release.created', result);
     await this.broadcastTodosUpdated(todos.map((t) => t.id));
     return result;
@@ -247,7 +257,17 @@ export class ReleasesService {
       });
     });
 
-    const result = toReleaseDto(updated);
+    if (hasDeployments) {
+      const serviceIds = await this.resolveDeploymentServiceIds(dto.deployments!);
+      await this.startMonitorsForServices(
+        id,
+        existing.type as ReleaseType,
+        serviceIds,
+      );
+    }
+
+    const full = await this.getReleaseOrThrow(id);
+    const result = toReleaseDto(full);
     this.events.broadcast('release.updated', result);
 
     const touchedTodoIds = [
@@ -387,6 +407,45 @@ export class ReleasesService {
     }
 
     throw new BadRequestException('Each deployment requires serviceId or serviceKeyName');
+  }
+
+  private async resolveDeploymentServiceIds(
+    deployments: Array<{ serviceId?: string; serviceKeyName?: string }>,
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    for (const deployment of deployments) {
+      ids.push(await this.resolveDeploymentServiceId(this.prisma, deployment));
+    }
+    return ids;
+  }
+
+  private async startMonitorsForServices(
+    releaseId: string,
+    environment: ReleaseType,
+    serviceIds: string[],
+  ): Promise<void> {
+    if (!serviceIds.length) return;
+    const deployments = await this.prisma.releaseDeployment.findMany({
+      where: { releaseId, serviceId: { in: serviceIds } },
+    });
+
+    for (const deployment of deployments) {
+      if (!deployment.jobUrl || deployment.buildNumber == null) continue;
+      await this.monitorsService.createForReleaseDeployment(
+        deployment.id,
+        {
+          type: MonitorType.DEPLOYMENT,
+          cron: DEFAULT_DEPLOY_CRON,
+          enabled: true,
+          config: {
+            env: environment === ReleaseType.PROD ? 'prod' : 'staging',
+            jobUrl: deployment.jobUrl,
+            buildNumber: deployment.buildNumber,
+          },
+        },
+        { silent: true },
+      );
+    }
   }
 
   private async broadcastTodosUpdated(todoIds: string[]): Promise<void> {

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ReleaseType, TodoStatus } from '@todo-platform/shared-types';
 import { EventsGateway } from '../events/events.gateway';
+import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReleasesService } from './releases.service';
 
@@ -40,6 +41,9 @@ describe('ReleasesService', () => {
     $transaction: jest.Mock;
   };
   let events: { broadcast: jest.Mock };
+  let monitorsService: {
+    createForReleaseDeployment: jest.Mock;
+  };
 
   const serviceA = {
     id: 'svc-a',
@@ -114,12 +118,16 @@ describe('ReleasesService', () => {
       $transaction: jest.fn(async (fn) => fn(prisma)),
     };
     events = { broadcast: jest.fn() };
+    monitorsService = {
+      createForReleaseDeployment: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReleasesService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
+        { provide: MonitorsService, useValue: monitorsService },
       ],
     }).compile();
 
@@ -132,6 +140,7 @@ describe('ReleasesService', () => {
       .mockResolvedValueOnce([todoA, todoB]);
     prisma.release.create.mockResolvedValue({ id: 'rel-1' });
     prisma.release.findUniqueOrThrow.mockResolvedValue(baseRelease);
+    prisma.release.findUnique.mockResolvedValue(baseRelease);
 
     const result = await service.create({
       type: ReleaseType.STAGING,
@@ -217,17 +226,20 @@ describe('ReleasesService', () => {
 
   it('appends a todo while not_started', async () => {
     const todoC = { ...todoA, id: 'todo-c', title: 'Todo C', releaseMemberships: [] };
-    prisma.release.findUnique.mockResolvedValue(baseRelease);
-    prisma.todo.findMany
-      .mockResolvedValueOnce([todoC])
-      .mockResolvedValueOnce([todoC]);
-    prisma.release.findUniqueOrThrow.mockResolvedValue({
+    const withC = {
       ...baseRelease,
       members: [
         ...baseRelease.members,
         { todoId: 'todo-c', todo: todoC },
       ],
-    });
+    };
+    prisma.release.findUnique
+      .mockResolvedValueOnce(baseRelease)
+      .mockResolvedValueOnce(withC);
+    prisma.todo.findMany
+      .mockResolvedValueOnce([todoC])
+      .mockResolvedValueOnce([todoC]);
+    prisma.release.findUniqueOrThrow.mockResolvedValue(withC);
 
     const result = await service.update('rel-1', { todoIdsToAdd: ['todo-c'] });
     expect(result.members).toHaveLength(3);
@@ -246,17 +258,20 @@ describe('ReleasesService', () => {
   });
 
   it('removes a member and cancels draft while not_started', async () => {
-    prisma.release.findUnique.mockResolvedValue(baseRelease);
-    prisma.release.findUniqueOrThrow.mockResolvedValue({
+    const afterRemove = {
       ...baseRelease,
       members: [baseRelease.members[0]],
-    });
+    };
+    prisma.release.findUnique
+      .mockResolvedValueOnce(baseRelease)
+      .mockResolvedValueOnce(afterRemove)
+      .mockResolvedValueOnce(baseRelease);
+    prisma.release.findUniqueOrThrow.mockResolvedValue(afterRemove);
     prisma.todo.findMany.mockResolvedValue([todoB]);
 
     await service.update('rel-1', { todoIdsToRemove: ['todo-b'] });
     expect(prisma.releaseMember.deleteMany).toHaveBeenCalled();
 
-    prisma.release.findUnique.mockResolvedValue(baseRelease);
     prisma.todo.findMany.mockResolvedValue([todoA, todoB]);
     await service.cancel('rel-1');
     expect(prisma.release.delete).toHaveBeenCalledWith({ where: { id: 'rel-1' } });
@@ -277,12 +292,14 @@ describe('ReleasesService', () => {
       .mockResolvedValueOnce([completedTodo])
       .mockResolvedValueOnce([completedTodo]);
     prisma.release.create.mockResolvedValue({ id: 'rel-prod' });
-    prisma.release.findUniqueOrThrow.mockResolvedValue({
+    const prodRelease = {
       ...baseRelease,
       id: 'rel-prod',
       type: 'prod',
       members: [{ todoId: 'todo-a', todo: completedTodo }],
-    });
+    };
+    prisma.release.findUniqueOrThrow.mockResolvedValue(prodRelease);
+    prisma.release.findUnique.mockResolvedValue(prodRelease);
 
     const result = await service.create({
       type: ReleaseType.PROD,
