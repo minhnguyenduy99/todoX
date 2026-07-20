@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TodosModule } from './todos/todos.module';
 import { SubtasksModule } from './subtasks/subtasks.module';
 import { MonitorsModule } from './monitors/monitors.module';
+import { ServicesModule } from './services/services.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EventsModule } from './events/events.module';
 import { HealthModule } from './health/health.module';
@@ -30,6 +31,7 @@ import { validateEnv } from './config/env.validation';
     TodosModule,
     SubtasksModule,
     MonitorsModule,
+    ServicesModule,
     SchedulerModule,
     HealthModule,
   ],

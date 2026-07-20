@@ -1,12 +1,15 @@
 import type {
   CreateMonitorDto,
+  CreateServiceDto,
   CreateSubtaskDto,
   CreateTodoDto,
   HealthResponse,
   MonitorDto,
+  ServiceDto,
   SubtaskDto,
   TodoDto,
   UpdateMonitorDto,
+  UpdateServiceDto,
   UpdateSubtaskDto,
   UpdateTodoDto,
 } from '@todo-platform/shared-types';
@@ -70,6 +73,27 @@ export class TodoApiClient {
 
   deleteTodo(id: string): Promise<void> {
     return this.request<void>('DELETE', `/todos/${id}`);
+  }
+
+  // Services
+  listServices(): Promise<ServiceDto[]> {
+    return this.request<ServiceDto[]>('GET', '/services');
+  }
+
+  getService(id: string): Promise<ServiceDto> {
+    return this.request<ServiceDto>('GET', `/services/${id}`);
+  }
+
+  createService(data: CreateServiceDto): Promise<ServiceDto> {
+    return this.request<ServiceDto>('POST', '/services', data);
+  }
+
+  updateService(id: string, data: UpdateServiceDto): Promise<ServiceDto> {
+    return this.request<ServiceDto>('PATCH', `/services/${id}`, data);
+  }
+
+  deleteService(id: string): Promise<void> {
+    return this.request<void>('DELETE', `/services/${id}`);
   }
 
   // Subtasks

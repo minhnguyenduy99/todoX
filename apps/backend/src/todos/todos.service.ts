@@ -1,10 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { syncPullRequests } from '../common/pull-requests';
 import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { syncAssociatedTickets } from '../common/sync-associated-tickets';
+import {
+  applyTodoServiceResolution,
+  resolveTodoServiceInput,
+} from '../common/resolve-todo-service';
 import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
 
@@ -31,6 +36,7 @@ const subtaskInclude = {
 
 const todoInclude = {
   monitor: true,
+  service: true,
   subtasks: subtaskInclude,
   pullRequests: pullRequestInclude,
   associatedTickets: associatedTicketInclude,
@@ -63,9 +69,28 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto): Promise<TodoDto> {
-    const { monitor, pullRequests, deployedEnvironments, associatedTickets, ...todoData } = dto;
+    const {
+      monitor,
+      pullRequests,
+      deployedEnvironments,
+      associatedTickets,
+      serviceId,
+      serviceKeyName,
+      ...todoData
+    } = dto;
+
+    const serviceResolution = await resolveTodoServiceInput(this.prisma, {
+      serviceId,
+      serviceKeyName,
+    });
+
+    const createData: Prisma.TodoCreateInput = { ...todoData };
+    if (serviceResolution.action === 'connect') {
+      createData.service = { connect: { id: serviceResolution.serviceId } };
+    }
+
     const todo = await this.prisma.todo.create({
-      data: todoData,
+      data: createData,
     });
 
     if (monitor) {
@@ -88,11 +113,28 @@ export class TodosService {
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
-    const { monitor, pullRequests, deployedEnvironments, associatedTickets, ...todoData } = dto;
+    const {
+      monitor,
+      pullRequests,
+      deployedEnvironments,
+      associatedTickets,
+      serviceId,
+      serviceKeyName,
+      ...todoData
+    } = dto;
+
+    const serviceResolution = await resolveTodoServiceInput(this.prisma, {
+      serviceId,
+      serviceKeyName,
+    });
+    const serviceData = applyTodoServiceResolution(serviceResolution);
 
     await this.prisma.todo.update({
       where: { id },
-      data: todoData,
+      data: {
+        ...todoData,
+        ...(serviceData ?? {}),
+      },
     });
 
     if (monitor) {

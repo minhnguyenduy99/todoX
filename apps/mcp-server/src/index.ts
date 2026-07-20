@@ -37,6 +37,12 @@ import {
   resolveUpdateAssociatedTickets,
   addAssociatedTicketDescription,
 } from './associated-ticket.js';
+import {
+  createServiceSchema,
+  serviceIdParamSchema,
+  todoServiceFields,
+  updateServiceSchema,
+} from './services.js';
 
 const deploymentMonitorConfigDescription =
   'Monitor-specific configuration. For type deployment (Jenkins): { "env": "dev"|"uat"|"uat-main"|"staging", "jobUrl": "https://jenkins.example.net/job/my-job", "buildNumber": 2790 }';
@@ -109,6 +115,8 @@ const tools = [
             'Associated external tickets (full list; prefer associatedTicket to add one)',
           items: associatedTicketSchema,
         },
+        serviceId: todoServiceFields.serviceId,
+        serviceKeyName: todoServiceFields.serviceKeyName,
         monitor: monitorInputSchema,
       },
       required: ['title'],
@@ -172,6 +180,16 @@ const tools = [
           description:
             'Replace associated external tickets (omit to leave unchanged, pass [] to remove all)',
           items: associatedTicketSchema,
+        },
+        serviceId: {
+          ...todoServiceFields.serviceId,
+          description:
+            'Service UUID (optional; pass null to clear — ignores serviceKeyName when null)',
+        },
+        serviceKeyName: {
+          ...todoServiceFields.serviceKeyName,
+          description:
+            'Service key (optional; pass null to clear — ignores serviceId when null)',
         },
         monitor: monitorInputSchema,
       },
@@ -355,6 +373,33 @@ const tools = [
     },
   },
   {
+    name: 'list_services',
+    description: 'List all predefined services (keyName and displayName)',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'get_service',
+    description: 'Get a service by ID',
+    inputSchema: serviceIdParamSchema,
+  },
+  {
+    name: 'create_service',
+    description:
+      'Add a service to the catalog. keyName is immutable (lowercase slug). displayName defaults to keyName.',
+    inputSchema: createServiceSchema,
+  },
+  {
+    name: 'update_service',
+    description: 'Update a service displayName (keyName cannot change)',
+    inputSchema: updateServiceSchema,
+  },
+  {
+    name: 'delete_service',
+    description:
+      'Delete a service. Todos referencing it will have their service cleared (SET NULL).',
+    inputSchema: serviceIdParamSchema,
+  },
+  {
     name: 'delete_subtask',
     description: 'Delete a subtask',
     inputSchema: {
@@ -393,6 +438,8 @@ function createMcpServer(): Server {
             pullRequests: resolveCreatePullRequests(a),
             deployedEnvironments: resolveCreateDeployedEnvironments(a),
             associatedTickets: resolveCreateAssociatedTickets(a),
+            serviceId: a.serviceId as string | null | undefined,
+            serviceKeyName: a.serviceKeyName as string | null | undefined,
           });
           break;
         case 'list_todos':
@@ -418,6 +465,8 @@ function createMcpServer(): Server {
               a.id as string,
               a,
             ),
+            serviceId: a.serviceId as string | null | undefined,
+            serviceKeyName: a.serviceKeyName as string | null | undefined,
           });
           break;
         case 'delete_todo':
@@ -462,6 +511,27 @@ function createMcpServer(): Server {
           break;
         case 'add_deployed_environment':
           result = await addDeployedEnvironment(api, a);
+          break;
+        case 'list_services':
+          result = await api.listServices();
+          break;
+        case 'get_service':
+          result = await api.getService(a.id as string);
+          break;
+        case 'create_service':
+          result = await api.createService({
+            keyName: a.keyName as string,
+            displayName: a.displayName as string | undefined,
+          });
+          break;
+        case 'update_service':
+          result = await api.updateService(a.id as string, {
+            displayName: a.displayName as string | undefined,
+          });
+          break;
+        case 'delete_service':
+          await api.deleteService(a.id as string);
+          result = { success: true, id: a.id };
           break;
         case 'delete_subtask':
           await api.deleteSubtask(a.todoId as string, a.subtaskId as string);

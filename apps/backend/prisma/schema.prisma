@@ -46,14 +46,17 @@ model Todo {
   title                 String
   description           String?
   status                TodoStatus              @default(NOT_STARTED)
+  serviceId             String?                 @map("service_id")
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
+  service               Service?                @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   subtasks             Subtask[]
   monitor              Monitor?
   pullRequests         AssociatedPullRequest[]
   associatedTickets    AssociatedTicket[]
   deployedEnvironments DeployedEnvironment[]
 
+  @@index([serviceId])
   @@map("todos")
 }
 
@@ -139,4 +142,15 @@ model Monitor {
   subtask    Subtask?    @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
 
   @@map("monitors")
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  keyName     String   @unique @map("key_name")
+  displayName String?  @map("display_name")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  todos       Todo[]
+
+  @@map("services")
 }

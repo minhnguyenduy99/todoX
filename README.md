@@ -165,10 +165,17 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `delete_subtask` | Delete a subtask (and its monitor, if any) |
 | `add_associated_pull_request` | Associate a PR with a todo or subtask (flat parameters; appends to existing PRs) |
 | `add_associated_ticket` | Associate an external feature/bug ticket with a todo (flat parameters; appends to existing tickets, same link updates in place). When linking Jira, set `title` to the Jira ticket title. |
+| `list_services` | List all predefined services |
+| `get_service` | Get a service by ID |
+| `create_service` | Add a service to the catalog (`keyName` slug, optional `displayName`) |
+| `update_service` | Update a service `displayName` (`keyName` is immutable) |
+| `delete_service` | Delete a service (clears association on referencing todos) |
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
 
 `create_todo` and `update_todo` also accept optional `associatedTickets` (full list) or `associatedTicket` (singular, appends one). Use `add_associated_ticket` when you only need to link a ticket on an existing todo. For Jira links, the MCP tool descriptions require using the Jira issue title as `title`.
+
+`create_todo` and `update_todo` also accept optional `serviceId` and/or `serviceKeyName` to assign a predefined service to the todo. Prefer `serviceKeyName` for agents. Pass `null` on either field to clear the association.
 
 ## REST API
 
@@ -181,6 +188,18 @@ GET    /todos/:id
 PATCH  /todos/:id
 DELETE /todos/:id
 ```
+
+### Services
+
+```
+GET    /services
+POST   /services
+GET    /services/:id
+PATCH  /services/:id
+DELETE /services/:id
+```
+
+Todo `POST` / `PATCH` bodies accept optional `serviceId` and/or `serviceKeyName` to assign a catalog service.
 
 ### Subtasks
 

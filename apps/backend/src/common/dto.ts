@@ -5,6 +5,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
   IsArray,
 } from 'class-validator';
@@ -103,6 +104,16 @@ export class CreateTodoBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedTicketBody)
   associatedTickets?: AssociatedTicketBody[];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  serviceId?: string | null;
+
+  @ApiPropertyOptional({ example: 'billing-api' })
+  @IsOptional()
+  @IsString()
+  serviceKeyName?: string | null;
 }
 
 export class UpdateTodoBody {
@@ -147,6 +158,16 @@ export class UpdateTodoBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedTicketBody)
   associatedTickets?: AssociatedTicketBody[];
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  serviceId?: string | null;
+
+  @ApiPropertyOptional({ example: 'billing-api', nullable: true })
+  @IsOptional()
+  @IsString()
+  serviceKeyName?: string | null;
 }
 
 export class CreateSubtaskBody {

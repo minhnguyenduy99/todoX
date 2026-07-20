@@ -4,6 +4,7 @@ import { PullRequestList } from './PullRequestList';
 import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { CopyableUuid } from './CopyableUuid';
+import { ServiceBadge } from './ServiceBadge';
 
 interface TodoCardProps {
   todo: TodoDto;
@@ -50,7 +51,10 @@ export function TodoCard({
     >
       <div className="todo-header">
         <div className="todo-header-content">
-          <CopyableUuid uuid={todo.id} compact={compactUuid} />
+          <div className="todo-id-row">
+            <CopyableUuid uuid={todo.id} compact={compactUuid} />
+            {todo.service && <ServiceBadge service={todo.service} compact={compactUuid} />}
+          </div>
           <div className="todo-title">{todo.title}</div>
           <PullRequestList
             pullRequests={todo.pullRequests ?? []}

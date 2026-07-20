@@ -10,6 +10,7 @@ import {
   type DeployedEnvironmentDto,
   type MonitorDto,
   type MonitorResult,
+  type ServiceDto,
   type SubtaskDto,
   type TodoDto,
 } from '@todo-platform/shared-types';
@@ -18,6 +19,7 @@ import type {
   AssociatedTicket,
   DeployedEnvironment,
   Monitor,
+  Service,
   Subtask,
   Todo,
 } from '@prisma/client';
@@ -83,6 +85,16 @@ export function toAssociatedTicketDto(
     link: ticket.link,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
+  };
+}
+
+export function toServiceDto(service: Service): ServiceDto {
+  return {
+    id: service.id,
+    keyName: service.keyName,
+    displayName: service.displayName ?? service.keyName,
+    createdAt: service.createdAt.toISOString(),
+    updatedAt: service.updatedAt.toISOString(),
   };
 }
 
@@ -155,6 +167,7 @@ export function toSubtaskDto(
 export function toTodoDto(
   todo: Todo & {
     monitor?: Monitor | null;
+    service?: Service | null;
     subtasks?: (Subtask & {
       monitor?: Monitor | null;
       pullRequests?: AssociatedPullRequest[];
@@ -172,6 +185,7 @@ export function toTodoDto(
     status: todo.status as TodoStatus,
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
+    service: todo.service ? toServiceDto(todo.service) : null,
     monitor: todo.monitor ? toMonitorDto(todo.monitor) : null,
     subtasks: todo.subtasks?.map(toSubtaskDto),
     pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),

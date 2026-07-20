@@ -5,6 +5,7 @@ import { PullRequestList } from './PullRequestList';
 import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { CopyableUuid } from './CopyableUuid';
+import { ServiceBadge } from './ServiceBadge';
 
 interface SubtaskPanelProps {
   todo: TodoDto;
@@ -46,6 +47,15 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
         </div>
 
         <div className="subtask-panel-body">
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Service</h3>
+            {todo.service ? (
+              <ServiceBadge service={todo.service} />
+            ) : (
+              <p className="subtask-panel-empty-field">No service assigned</p>
+            )}
+          </section>
+
           <section className="subtask-panel-field">
             <h3 className="subtask-panel-label">Tickets</h3>
             {associatedTickets.length > 0 ? (

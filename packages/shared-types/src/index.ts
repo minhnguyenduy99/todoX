@@ -112,6 +112,23 @@ export interface AssociatedTicketInput {
   link: string;
 }
 
+export interface ServiceDto {
+  id: string;
+  keyName: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateServiceDto {
+  keyName: string;
+  displayName?: string;
+}
+
+export interface UpdateServiceDto {
+  displayName?: string | null;
+}
+
 export interface TodoDto {
   id: string;
   title: string;
@@ -119,6 +136,7 @@ export interface TodoDto {
   status: TodoStatus;
   createdAt: string;
   updatedAt: string;
+  service?: ServiceDto | null;
   monitor?: MonitorDto | null;
   subtasks?: SubtaskDto[];
   pullRequests?: AssociatedPullRequestDto[];
@@ -157,6 +175,8 @@ export interface CreateTodoDto {
   title: string;
   description?: string;
   status?: TodoStatus;
+  serviceId?: string | null;
+  serviceKeyName?: string | null;
   monitor?: CreateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
@@ -167,6 +187,8 @@ export interface UpdateTodoDto {
   title?: string;
   description?: string;
   status?: TodoStatus;
+  serviceId?: string | null;
+  serviceKeyName?: string | null;
   monitor?: UpdateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];

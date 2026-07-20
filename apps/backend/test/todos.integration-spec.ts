@@ -39,6 +39,7 @@ describe('Todos API (integration)', () => {
     await prisma.monitor.deleteMany();
     await prisma.subtask.deleteMany();
     await prisma.todo.deleteMany();
+    await prisma.service.deleteMany();
   });
 
   it('POST /todos creates a todo', async () => {
@@ -508,6 +509,98 @@ describe('Todos API (integration)', () => {
       cron: '*/10 * * * *',
       todoId: todoRes.body.id,
       subtaskId: null,
+    });
+  });
+
+  describe('service association', () => {
+    it('POST /todos assigns service by serviceKeyName', async () => {
+      await request(app.getHttpServer())
+        .post('/services')
+        .send({ keyName: 'billing-api', displayName: 'Billing API' });
+
+      const response = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Bill work', serviceKeyName: 'billing-api' })
+        .expect(201);
+
+      expect(response.body.service).toMatchObject({
+        keyName: 'billing-api',
+        displayName: 'Billing API',
+      });
+    });
+
+    it('POST /todos assigns service by serviceId', async () => {
+      const serviceRes = await request(app.getHttpServer())
+        .post('/services')
+        .send({ keyName: 'auth' })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Auth work', serviceId: serviceRes.body.id })
+        .expect(201);
+
+      expect(response.body.service?.keyName).toBe('auth');
+    });
+
+    it('PATCH /todos/:id clears service with explicit null', async () => {
+      await request(app.getHttpServer()).post('/services').send({ keyName: 'billing-api' });
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Bill work', serviceKeyName: 'billing-api' })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/todos/${createRes.body.id}`)
+        .send({ serviceKeyName: null })
+        .expect(200);
+
+      expect(response.body.service).toBeNull();
+    });
+
+    it('PATCH /todos/:id null serviceId ignores serviceKeyName (R8)', async () => {
+      await request(app.getHttpServer()).post('/services').send({ keyName: 'billing-api' });
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Bill work', serviceKeyName: 'billing-api' })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/todos/${createRes.body.id}`)
+        .send({ serviceId: null, serviceKeyName: 'billing-api' })
+        .expect(200);
+
+      expect(response.body.service).toBeNull();
+    });
+
+    it('PATCH /todos/:id rejects unknown serviceKeyName', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Work' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/todos/${createRes.body.id}`)
+        .send({ serviceKeyName: 'missing' })
+        .expect(400);
+    });
+
+    it('PATCH /todos/:id rejects conflicting serviceId and serviceKeyName', async () => {
+      await request(app.getHttpServer()).post('/services').send({ keyName: 'alpha' });
+      const beta = await request(app.getHttpServer())
+        .post('/services')
+        .send({ keyName: 'beta' })
+        .expect(201);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Work' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/todos/${createRes.body.id}`)
+        .send({ serviceId: beta.body.id, serviceKeyName: 'alpha' })
+        .expect(400);
     });
   });
 });
