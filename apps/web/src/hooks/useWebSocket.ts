@@ -104,5 +104,11 @@ function handleEvent(
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       break;
     }
+    case 'release.created':
+    case 'release.updated': {
+      queryClient.invalidateQueries({ queryKey: ['releases'] });
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      break;
+    }
   }
 }

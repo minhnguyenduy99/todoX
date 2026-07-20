@@ -2,6 +2,8 @@ import {
   TodoStatus,
   SubtaskStatus,
   MonitorResultStatus,
+  ReleaseStatus,
+  type ReleaseDto,
   type TodoDto,
   type WebSocketEvent,
 } from '@todo-platform/shared-types';
@@ -11,6 +13,12 @@ const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 export async function fetchTodos(): Promise<TodoDto[]> {
   const res = await fetch(`${API_BASE}/todos`);
   if (!res.ok) throw new Error(`Failed to fetch todos: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchReleases(): Promise<ReleaseDto[]> {
+  const res = await fetch(`${API_BASE}/releases`);
+  if (!res.ok) throw new Error(`Failed to fetch releases: ${res.status}`);
   return res.json();
 }
 
@@ -68,9 +76,28 @@ export function monitorResultColor(status: MonitorResultStatus | undefined): str
   }
 }
 
+export function releaseStatusColor(status: ReleaseStatus): string {
+  switch (status) {
+    case ReleaseStatus.SUCCESSFUL:
+      return 'badge-green';
+    case ReleaseStatus.FAILED:
+      return 'badge-red';
+    case ReleaseStatus.PARTIAL_SUCCESS:
+      return 'badge-yellow';
+    case ReleaseStatus.IN_PROGRESS:
+      return 'badge-blue';
+    default:
+      return 'badge-gray';
+  }
+}
+
+export function releaseStatusLabel(status: ReleaseStatus): string {
+  return status.replaceAll('_', ' ');
+}
+
 export function formatDate(date: string | null | undefined): string {
   if (!date) return 'Never';
   return new Date(date).toLocaleString();
 }
 
-export type { WebSocketEvent, TodoDto };
+export type { WebSocketEvent, TodoDto, ReleaseDto };
