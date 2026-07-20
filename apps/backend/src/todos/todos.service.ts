@@ -4,11 +4,16 @@ import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { syncPullRequests } from '../common/pull-requests';
 import { syncDeployedEnvironments } from '../common/deployed-environments';
+import { syncAssociatedTickets } from '../common/sync-associated-tickets';
 import { toTodoDto } from '../common/mappers';
 import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
+};
+
+const associatedTicketInclude = {
+  orderBy: { createdAt: 'asc' as const },
 };
 
 const deployedEnvironmentInclude = {
@@ -28,6 +33,7 @@ const todoInclude = {
   monitor: true,
   subtasks: subtaskInclude,
   pullRequests: pullRequestInclude,
+  associatedTickets: associatedTicketInclude,
   deployedEnvironments: deployedEnvironmentInclude,
 };
 
@@ -57,7 +63,7 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto): Promise<TodoDto> {
-    const { monitor, pullRequests, deployedEnvironments, ...todoData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, associatedTickets, ...todoData } = dto;
     const todo = await this.prisma.todo.create({
       data: todoData,
     });
@@ -67,6 +73,7 @@ export class TodosService {
     }
 
     await syncPullRequests(this.prisma, { todoId: todo.id }, pullRequests);
+    await syncAssociatedTickets(this.prisma, todo.id, associatedTickets);
     await syncDeployedEnvironments(this.prisma, { todoId: todo.id }, deployedEnvironments);
 
     const full = await this.prisma.todo.findUnique({
@@ -81,7 +88,7 @@ export class TodosService {
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
-    const { monitor, pullRequests, deployedEnvironments, ...todoData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, associatedTickets, ...todoData } = dto;
 
     await this.prisma.todo.update({
       where: { id },
@@ -115,6 +122,7 @@ export class TodosService {
     }
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
+    await syncAssociatedTickets(this.prisma, id, associatedTickets);
     await syncDeployedEnvironments(this.prisma, { todoId: id }, deployedEnvironments);
 
     const todo = await this.prisma.todo.findUnique({

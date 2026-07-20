@@ -36,16 +36,22 @@ enum DeployedEnvironmentName {
   staging
 }
 
+enum AssociatedTicketType {
+  feature
+  bug
+}
+
 model Todo {
-  id           String                  @id @default(uuid())
-  title        String
-  description  String?
-  status       TodoStatus              @default(NOT_STARTED)
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  id                    String                  @id @default(uuid())
+  title                 String
+  description           String?
+  status                TodoStatus              @default(NOT_STARTED)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
   subtasks             Subtask[]
   monitor              Monitor?
   pullRequests         AssociatedPullRequest[]
+  associatedTickets    AssociatedTicket[]
   deployedEnvironments DeployedEnvironment[]
 
   @@map("todos")
@@ -83,6 +89,20 @@ model AssociatedPullRequest {
   @@index([todoId])
   @@index([subtaskId])
   @@map("associated_pull_requests")
+}
+
+model AssociatedTicket {
+  id        String               @id @default(uuid())
+  title     String
+  type      AssociatedTicketType
+  link      String
+  todoId    String
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  todo      Todo                 @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@index([todoId])
+  @@map("associated_tickets")
 }
 
 model DeployedEnvironment {

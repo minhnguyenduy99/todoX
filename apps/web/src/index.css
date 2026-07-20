@@ -523,6 +523,71 @@ body {
   opacity: 0.85;
 }
 
+.ticket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+}
+
+.ticket-list-compact {
+  margin-top: 0.25rem;
+}
+
+.ticket-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.375rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 0.75rem;
+  transition: background 0.15s;
+}
+
+.ticket-item-compact {
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.25rem;
+}
+
+.ticket-item:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.ticket-item.ticket-type-bug:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ticket-type {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+}
+
+.ticket-type-feature {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.ticket-type-bug {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.ticket-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
 .env-list {
   display: flex;
   flex-wrap: wrap;

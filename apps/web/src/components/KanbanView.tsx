@@ -40,6 +40,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     showSubtaskCount
                     showStatus={false}
                     showDescription={false}
+                    showAssociatedTickets={false}
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

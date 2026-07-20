@@ -125,6 +125,159 @@ describe('Todos API (integration)', () => {
     expect(updateRes.body.pullRequests[0].number).toBe(2);
   });
 
+  it('POST /todos creates a todo with associated external tickets', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Bug fix work',
+        associatedTickets: [
+          {
+            title: 'PROJ-42: Login redirect fails',
+            type: 'bug',
+            link: 'https://jira.example.com/browse/PROJ-42',
+          },
+          {
+            title: 'PROJ-43: Add SSO',
+            type: 'feature',
+            link: 'https://jira.example.com/browse/PROJ-43',
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.associatedTickets).toHaveLength(2);
+    expect(response.body.associatedTickets[0]).toMatchObject({
+      title: 'PROJ-42: Login redirect fails',
+      type: 'bug',
+      link: 'https://jira.example.com/browse/PROJ-42',
+    });
+    expect(response.body.associatedTickets[1]).toMatchObject({
+      title: 'PROJ-43: Add SSO',
+      type: 'feature',
+      link: 'https://jira.example.com/browse/PROJ-43',
+    });
+  });
+
+  it('PATCH /todos/:id replaces associated external tickets', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Ticket todo',
+        associatedTickets: [
+          {
+            title: 'OLD-1',
+            type: 'bug',
+            link: 'https://jira.example.com/browse/OLD-1',
+          },
+        ],
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${createRes.body.id}`)
+      .send({
+        associatedTickets: [
+          {
+            title: 'NEW-2: Feature rollout',
+            type: 'feature',
+            link: 'https://jira.example.com/browse/NEW-2',
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(updateRes.body.associatedTickets).toHaveLength(1);
+    expect(updateRes.body.associatedTickets[0]).toMatchObject({
+      title: 'NEW-2: Feature rollout',
+      type: 'feature',
+      link: 'https://jira.example.com/browse/NEW-2',
+    });
+  });
+
+  it('PATCH /todos/:id clears associated external tickets', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Clear ticket todo',
+        associatedTickets: [
+          {
+            title: 'TEMP-1',
+            type: 'bug',
+            link: 'https://jira.example.com/browse/TEMP-1',
+          },
+        ],
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${createRes.body.id}`)
+      .send({ associatedTickets: [] })
+      .expect(200);
+
+    expect(updateRes.body.associatedTickets).toHaveLength(0);
+  });
+
+  it('PATCH /todos/:id leaves associated tickets unchanged when omitted', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Keep ticket todo',
+        associatedTickets: [
+          {
+            title: 'KEEP-1',
+            type: 'feature',
+            link: 'https://jira.example.com/browse/KEEP-1',
+          },
+        ],
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${createRes.body.id}`)
+      .send({ title: 'Renamed todo' })
+      .expect(200);
+
+    expect(updateRes.body.title).toBe('Renamed todo');
+    expect(updateRes.body.associatedTickets).toHaveLength(1);
+    expect(updateRes.body.associatedTickets[0]).toMatchObject({
+      title: 'KEEP-1',
+      type: 'feature',
+      link: 'https://jira.example.com/browse/KEEP-1',
+    });
+  });
+
+  it('POST /todos rejects an associated ticket with an invalid link', async () => {
+    await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Invalid ticket',
+        associatedTickets: [
+          {
+            title: 'BAD-1',
+            type: 'bug',
+            link: 'not-a-url',
+          },
+        ],
+      })
+      .expect(400);
+  });
+
+  it('POST /todos rejects an associated ticket with an invalid type', async () => {
+    await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Invalid type',
+        associatedTickets: [
+          {
+            title: 'BAD-2',
+            type: 'chore',
+            link: 'https://jira.example.com/browse/BAD-2',
+          },
+        ],
+      })
+      .expect(400);
+  });
+
   it('POST /todos/:todoId/subtasks creates a subtask with an optional monitor', async () => {
     const todoRes = await request(app.getHttpServer())
       .post('/todos')

@@ -92,6 +92,26 @@ export interface AssociatedPullRequestInput {
   url: string;
 }
 
+export enum AssociatedTicketType {
+  FEATURE = 'feature',
+  BUG = 'bug',
+}
+
+export interface AssociatedTicketDto {
+  id: string;
+  title: string;
+  type: AssociatedTicketType;
+  link: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssociatedTicketInput {
+  title: string;
+  type: AssociatedTicketType;
+  link: string;
+}
+
 export interface TodoDto {
   id: string;
   title: string;
@@ -103,6 +123,7 @@ export interface TodoDto {
   subtasks?: SubtaskDto[];
   pullRequests?: AssociatedPullRequestDto[];
   deployedEnvironments?: DeployedEnvironmentDto[];
+  associatedTickets?: AssociatedTicketDto[];
 }
 
 export interface SubtaskDto {
@@ -139,6 +160,7 @@ export interface CreateTodoDto {
   monitor?: CreateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
+  associatedTickets?: AssociatedTicketInput[];
 }
 
 export interface UpdateTodoDto {
@@ -148,6 +170,7 @@ export interface UpdateTodoDto {
   monitor?: UpdateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
+  associatedTickets?: AssociatedTicketInput[];
 }
 
 export interface CreateSubtaskDto {

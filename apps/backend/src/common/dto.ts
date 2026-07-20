@@ -17,6 +17,7 @@ import {
   TodoStatus,
 } from '@todo-platform/shared-types';
 import { AssociatedPullRequestBody } from './pull-request.dto';
+import { AssociatedTicketBody } from './associated-ticket.dto';
 
 export class CreateSubtaskMonitorBody {
   @ApiProperty({ enum: MonitorType })
@@ -95,6 +96,13 @@ export class CreateTodoBody {
   @ValidateNested()
   @Type(() => CreateSubtaskMonitorBody)
   monitor?: CreateSubtaskMonitorBody;
+
+  @ApiPropertyOptional({ type: [AssociatedTicketBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedTicketBody)
+  associatedTickets?: AssociatedTicketBody[];
 }
 
 export class UpdateTodoBody {
@@ -132,6 +140,13 @@ export class UpdateTodoBody {
   @ValidateNested()
   @Type(() => UpdateSubtaskMonitorBody)
   monitor?: UpdateSubtaskMonitorBody;
+
+  @ApiPropertyOptional({ type: [AssociatedTicketBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedTicketBody)
+  associatedTickets?: AssociatedTicketBody[];
 }
 
 export class CreateSubtaskBody {

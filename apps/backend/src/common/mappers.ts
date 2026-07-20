@@ -4,7 +4,9 @@ import {
   SubtaskStatus,
   TodoStatus,
   DeployedEnvironmentName,
+  AssociatedTicketType,
   type AssociatedPullRequestDto,
+  type AssociatedTicketDto,
   type DeployedEnvironmentDto,
   type MonitorDto,
   type MonitorResult,
@@ -13,6 +15,7 @@ import {
 } from '@todo-platform/shared-types';
 import type {
   AssociatedPullRequest,
+  AssociatedTicket,
   DeployedEnvironment,
   Monitor,
   Subtask,
@@ -67,6 +70,19 @@ export function toAssociatedPullRequestDto(
     url: pr.url,
     createdAt: pr.createdAt.toISOString(),
     updatedAt: pr.updatedAt.toISOString(),
+  };
+}
+
+export function toAssociatedTicketDto(
+  ticket: AssociatedTicket,
+): AssociatedTicketDto {
+  return {
+    id: ticket.id,
+    title: ticket.title,
+    type: ticket.type as AssociatedTicketType,
+    link: ticket.link,
+    createdAt: ticket.createdAt.toISOString(),
+    updatedAt: ticket.updatedAt.toISOString(),
   };
 }
 
@@ -145,6 +161,7 @@ export function toTodoDto(
       deployedEnvironments?: DeployedEnvironment[];
     })[];
     pullRequests?: AssociatedPullRequest[];
+    associatedTickets?: AssociatedTicket[];
     deployedEnvironments?: DeployedEnvironment[];
   },
 ): TodoDto {
@@ -158,6 +175,7 @@ export function toTodoDto(
     monitor: todo.monitor ? toMonitorDto(todo.monitor) : null,
     subtasks: todo.subtasks?.map(toSubtaskDto),
     pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),
+    associatedTickets: todo.associatedTickets?.map(toAssociatedTicketDto),
     deployedEnvironments: enrichTodoDeployedEnvironments(
       todo.deployedEnvironments,
       todo.subtasks,

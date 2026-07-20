@@ -30,6 +30,13 @@ import {
   resolveCreateDeployedEnvironments,
   resolveUpdateDeployedEnvironments,
 } from './deployed-environments.js';
+import {
+  addAssociatedTicket,
+  associatedTicketSchema,
+  resolveCreateAssociatedTickets,
+  resolveUpdateAssociatedTickets,
+  addAssociatedTicketDescription,
+} from './associated-ticket.js';
 
 const deploymentMonitorConfigDescription =
   'Monitor-specific configuration. For type deployment (Jenkins): { "env": "dev"|"uat"|"uat-main"|"staging", "jobUrl": "https://jenkins.example.net/job/my-job", "buildNumber": 2790 }';
@@ -91,6 +98,17 @@ const tools = [
           description:
             'Mark a single deployed environment (use this instead of deployedEnvironments when adding one)',
         },
+        associatedTicket: {
+          ...associatedTicketSchema,
+          description:
+            'Associate a single external ticket (use this instead of associatedTickets when adding one ticket)',
+        },
+        associatedTickets: {
+          type: 'array',
+          description:
+            'Associated external tickets (full list; prefer associatedTicket to add one)',
+          items: associatedTicketSchema,
+        },
         monitor: monitorInputSchema,
       },
       required: ['title'],
@@ -143,6 +161,17 @@ const tools = [
           ...deployedEnvironmentSchema,
           description:
             'Add one deployed environment (appends; omit deployedEnvironments when using this)',
+        },
+        associatedTicket: {
+          ...associatedTicketSchema,
+          description:
+            'Add or update one associated external ticket (appends; omit associatedTickets when using this)',
+        },
+        associatedTickets: {
+          type: 'array',
+          description:
+            'Replace associated external tickets (omit to leave unchanged, pass [] to remove all)',
+          items: associatedTicketSchema,
         },
         monitor: monitorInputSchema,
       },
@@ -284,6 +313,31 @@ const tools = [
     },
   },
   {
+    name: 'add_associated_ticket',
+    description: addAssociatedTicketDescription,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        todoId: { type: 'string', description: 'Todo ID' },
+        title: {
+          type: 'string',
+          description:
+            "Ticket title. When linking a Jira issue, use the Jira ticket's title exactly as shown in Jira.",
+        },
+        type: {
+          type: 'string',
+          enum: ['feature', 'bug'],
+          description: 'Whether the external ticket is a feature or a bug',
+        },
+        link: {
+          type: 'string',
+          description: 'URL to the external ticket (e.g. Jira issue URL)',
+        },
+      },
+      required: ['todoId', 'title', 'type', 'link'],
+    },
+  },
+  {
     name: 'add_deployed_environment',
     description:
       'Record that a todo or subtask has been deployed to an environment. Appends without replacing existing environments.',
@@ -338,6 +392,7 @@ function createMcpServer(): Server {
             monitor: a.monitor as CreateTodoDto['monitor'],
             pullRequests: resolveCreatePullRequests(a),
             deployedEnvironments: resolveCreateDeployedEnvironments(a),
+            associatedTickets: resolveCreateAssociatedTickets(a),
           });
           break;
         case 'list_todos':
@@ -356,6 +411,11 @@ function createMcpServer(): Server {
             deployedEnvironments: await resolveUpdateDeployedEnvironments(
               api,
               { todoId: a.id as string },
+              a,
+            ),
+            associatedTickets: await resolveUpdateAssociatedTickets(
+              api,
+              a.id as string,
               a,
             ),
           });
@@ -396,6 +456,9 @@ function createMcpServer(): Server {
           break;
         case 'add_associated_pull_request':
           result = await addAssociatedPullRequest(api, a);
+          break;
+        case 'add_associated_ticket':
+          result = await addAssociatedTicket(api, a);
           break;
         case 'add_deployed_environment':
           result = await addDeployedEnvironment(api, a);

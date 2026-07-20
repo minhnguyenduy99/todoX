@@ -164,8 +164,11 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `update_subtask` | Update a subtask (optionally update or add its monitor) |
 | `delete_subtask` | Delete a subtask (and its monitor, if any) |
 | `add_associated_pull_request` | Associate a PR with a todo or subtask (flat parameters; appends to existing PRs) |
+| `add_associated_ticket` | Associate an external feature/bug ticket with a todo (flat parameters; appends to existing tickets, same link updates in place). When linking Jira, set `title` to the Jira ticket title. |
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
+
+`create_todo` and `update_todo` also accept optional `associatedTickets` (full list) or `associatedTicket` (singular, appends one). Use `add_associated_ticket` when you only need to link a ticket on an existing todo. For Jira links, the MCP tool descriptions require using the Jira issue title as `title`.
 
 ## REST API
 

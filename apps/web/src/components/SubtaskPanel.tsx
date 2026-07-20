@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { TodoDto } from '@todo-platform/shared-types';
 import { subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
+import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { CopyableUuid } from './CopyableUuid';
 
@@ -13,6 +14,7 @@ interface SubtaskPanelProps {
 export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
   const subtasks = todo.subtasks ?? [];
   const pullRequests = todo.pullRequests ?? [];
+  const associatedTickets = todo.associatedTickets ?? [];
   const deployedEnvironments = todo.deployedEnvironments ?? [];
 
   useEffect(() => {
@@ -44,6 +46,15 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
         </div>
 
         <div className="subtask-panel-body">
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Tickets</h3>
+            {associatedTickets.length > 0 ? (
+              <AssociatedTicketList associatedTickets={associatedTickets} />
+            ) : (
+              <p className="subtask-panel-empty-field">No associated tickets</p>
+            )}
+          </section>
+
           <section className="subtask-panel-field">
             <h3 className="subtask-panel-label">PR</h3>
             {pullRequests.length > 0 ? (

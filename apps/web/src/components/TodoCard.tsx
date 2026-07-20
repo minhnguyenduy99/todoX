@@ -1,6 +1,7 @@
 import type { TodoDto } from '@todo-platform/shared-types';
 import { todoStatusColor, subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
+import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { CopyableUuid } from './CopyableUuid';
 
@@ -12,6 +13,7 @@ interface TodoCardProps {
   showSubtaskCount?: boolean;
   showStatus?: boolean;
   showDescription?: boolean;
+  showAssociatedTickets?: boolean;
   onClick?: () => void;
 }
 
@@ -23,6 +25,7 @@ export function TodoCard({
   showSubtaskCount = false,
   showStatus = true,
   showDescription = true,
+  showAssociatedTickets = true,
   onClick,
 }: TodoCardProps) {
   const subtasks = todo.subtasks ?? [];
@@ -53,6 +56,9 @@ export function TodoCard({
             pullRequests={todo.pullRequests ?? []}
             compact={compact}
           />
+          {showAssociatedTickets && (
+            <AssociatedTicketList associatedTickets={todo.associatedTickets ?? []} compact={compact} />
+          )}
           <DeployedEnvironmentList
             deployedEnvironments={todo.deployedEnvironments ?? []}
             compact={compact}
