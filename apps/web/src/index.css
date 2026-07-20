@@ -30,7 +30,7 @@ body {
 }
 
 .app {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -881,18 +881,18 @@ a.env-chip:hover {
   color: var(--text);
 }
 
-.list-with-releases {
+.app-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: 1.5rem;
   align-items: start;
 }
 
-.list-with-releases-main {
+.app-main {
   min-width: 0;
 }
 
-.list-with-releases-aside {
+.app-releases {
   position: sticky;
   top: 1rem;
   max-height: calc(100vh - 6rem);
@@ -1014,11 +1014,11 @@ a.env-chip:hover {
 }
 
 @media (max-width: 960px) {
-  .list-with-releases {
+  .app-layout {
     grid-template-columns: 1fr;
   }
 
-  .list-with-releases-aside {
+  .app-releases {
     position: static;
     max-height: none;
   }

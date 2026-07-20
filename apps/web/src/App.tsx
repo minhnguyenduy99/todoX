@@ -51,36 +51,26 @@ export function App() {
         </div>
       )}
 
-      {isLoading && <div className="loading">Loading todos...</div>}
+      <div className="app-layout">
+        <div className="app-main">
+          {isLoading && <div className="loading">Loading todos...</div>}
 
-      {!isLoading && viewMode === 'list' && (
-        <div className="list-with-releases">
-          <div className="list-with-releases-main">
-            {todos && todos.length === 0 ? (
-              <div className="empty-state">
-                <h2>No todos yet</h2>
-                <p>Create todos via the MCP server or REST API to see them here.</p>
-              </div>
-            ) : (
-              todos && <TodoListView todos={todos} />
-            )}
-          </div>
-          <aside className="list-with-releases-aside" aria-label="Releases">
-            <ReleasesView />
-          </aside>
+          {!isLoading && todos && todos.length === 0 && (
+            <div className="empty-state">
+              <h2>No todos yet</h2>
+              <p>Create todos via the MCP server or REST API to see them here.</p>
+            </div>
+          )}
+
+          {!isLoading && todos && todos.length > 0 && (
+            viewMode === 'list' ? <TodoListView todos={todos} /> : <KanbanView todos={todos} />
+          )}
         </div>
-      )}
 
-      {!isLoading && viewMode === 'kanban' && (
-        todos && todos.length === 0 ? (
-          <div className="empty-state">
-            <h2>No todos yet</h2>
-            <p>Create todos via the MCP server or REST API to see them here.</p>
-          </div>
-        ) : (
-          todos && <KanbanView todos={todos} />
-        )
-      )}
+        <aside className="app-releases" aria-label="Releases">
+          <ReleasesView />
+        </aside>
+      </div>
     </div>
   );
 }
