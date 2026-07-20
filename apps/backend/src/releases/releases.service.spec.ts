@@ -59,7 +59,6 @@ describe('ReleasesService', () => {
     description: null,
     status: 'WAIT_FOR_STAGING',
     serviceId: 'svc-a',
-    currentReleaseId: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     service: serviceA,
@@ -152,11 +151,6 @@ describe('ReleasesService', () => {
     expect(result.status).toBe('not_started');
     expect(result.members).toHaveLength(2);
     expect(prisma.releaseMember.createMany).toHaveBeenCalled();
-    expect(prisma.todo.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { currentReleaseId: 'rel-1' },
-      }),
-    );
     expect(events.broadcast).toHaveBeenCalledWith('release.created', expect.any(Object));
   });
 
@@ -309,11 +303,7 @@ describe('ReleasesService', () => {
     });
 
     expect(result.type).toBe('prod');
-    expect(prisma.todo.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { currentReleaseId: 'rel-prod' },
-      }),
-    );
+    expect(prisma.releaseMember.createMany).toHaveBeenCalled();
   });
 
   it('throws NotFoundException for missing release', async () => {

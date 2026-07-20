@@ -90,11 +90,6 @@ export class ReleasesService {
         })),
       });
 
-      await tx.todo.updateMany({
-        where: { id: { in: todos.map((t) => t.id) } },
-        data: { currentReleaseId: created.id },
-      });
-
       if (dto.deployments?.length) {
         const memberServiceIds = new Set(
           todos.map((t) => t.serviceId).filter((id): id is string => id != null),
@@ -156,15 +151,11 @@ export class ReleasesService {
       return toReleaseDto(existing);
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       if (dto.todoIdsToRemove?.length) {
         const removeIds = [...new Set(dto.todoIdsToRemove)];
         await tx.releaseMember.deleteMany({
           where: { releaseId: id, todoId: { in: removeIds } },
-        });
-        await tx.todo.updateMany({
-          where: { id: { in: removeIds }, currentReleaseId: id },
-          data: { currentReleaseId: null },
         });
       }
 
@@ -180,10 +171,6 @@ export class ReleasesService {
             todoId: todo.id,
           })),
           skipDuplicates: true,
-        });
-        await tx.todo.updateMany({
-          where: { id: { in: todos.map((t) => t.id) } },
-          data: { currentReleaseId: id },
         });
       }
 
@@ -289,13 +276,7 @@ export class ReleasesService {
 
     const memberTodoIds = existing.members.map((m) => m.todoId);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.todo.updateMany({
-        where: { currentReleaseId: id },
-        data: { currentReleaseId: null },
-      });
-      await tx.release.delete({ where: { id } });
-    });
+    await this.prisma.release.delete({ where: { id } });
 
     this.events.broadcast('release.updated', { id, cancelled: true });
     await this.broadcastTodosUpdated(memberTodoIds);

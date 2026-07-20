@@ -64,16 +64,10 @@ CREATE TABLE "completed_todos" (
 );
 
 -- AlterTable
-ALTER TABLE "todos" ADD COLUMN "current_release_id" TEXT;
-
--- AlterTable
 ALTER TABLE "monitors" ADD COLUMN "release_deployment_id" TEXT;
 
 -- CreateIndex
 CREATE INDEX "releases_release_date_idx" ON "releases"("release_date");
-
--- CreateIndex
-CREATE INDEX "todos_current_release_id_idx" ON "todos"("current_release_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "release_members_release_id_todo_id_key" ON "release_members"("release_id", "todo_id");
@@ -98,9 +92,6 @@ CREATE INDEX "completed_todos_original_todo_id_idx" ON "completed_todos"("origin
 
 -- CreateIndex
 CREATE INDEX "completed_todos_service_id_idx" ON "completed_todos"("service_id");
-
--- AddForeignKey
-ALTER TABLE "todos" ADD CONSTRAINT "todos_current_release_id_fkey" FOREIGN KEY ("current_release_id") REFERENCES "releases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "release_members" ADD CONSTRAINT "release_members_release_id_fkey" FOREIGN KEY ("release_id") REFERENCES "releases"("id") ON DELETE CASCADE ON UPDATE CASCADE;

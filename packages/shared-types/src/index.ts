@@ -134,7 +134,6 @@ export interface TodoDto {
   title: string;
   description: string | null;
   status: TodoStatus;
-  currentReleaseId: string | null;
   createdAt: string;
   updatedAt: string;
   service?: ServiceDto | null;

@@ -83,8 +83,12 @@ describe('Releases API (integration)', () => {
     expect(response.body.status).toBe('not_started');
     expect(response.body.members).toHaveLength(2);
 
-    const updatedA = await prisma.todo.findUnique({ where: { id: todoA.id } });
-    expect(updatedA?.currentReleaseId).toBe(response.body.id);
+    const members = await prisma.releaseMember.findMany({
+      where: { releaseId: response.body.id },
+    });
+    expect(members.map((m) => m.todoId).sort()).toEqual(
+      [todoA.id, todoB.id].sort(),
+    );
   });
 
   it('availableForRelease filter excludes members of non-terminal releases', async () => {

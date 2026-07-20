@@ -193,7 +193,6 @@ export function toTodoDto(
     title: todo.title,
     description: todo.description,
     status: todo.status as TodoStatus,
-    currentReleaseId: todo.currentReleaseId ?? null,
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
     service: todo.service ? toServiceDto(todo.service) : null,

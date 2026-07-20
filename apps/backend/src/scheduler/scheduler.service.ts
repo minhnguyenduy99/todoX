@@ -135,7 +135,6 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (monitor.releaseDeploymentId) {
       await this.syncReleaseDeploymentMonitor(
         monitor.releaseDeploymentId,
-        previousResult,
         result,
       );
       const dto = toMonitorDto(updated);
@@ -170,7 +169,6 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
   private async syncReleaseDeploymentMonitor(
     releaseDeploymentId: string,
-    previousResult: MonitorResult | null,
     result: MonitorResult,
   ): Promise<void> {
     const deployment = await this.prisma.releaseDeployment.findUnique({
@@ -334,18 +332,6 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         completedTodos: { include: { service: true } },
       },
     });
-
-    // Clear currentReleaseId when release becomes terminal
-    if (
-      nextReleaseStatus === 'successful' ||
-      nextReleaseStatus === 'partial_success' ||
-      nextReleaseStatus === 'failed'
-    ) {
-      await this.prisma.todo.updateMany({
-        where: { currentReleaseId: releaseId },
-        data: { currentReleaseId: null },
-      });
-    }
 
     this.events.broadcast('release.updated', toReleaseDto(updated));
   }
