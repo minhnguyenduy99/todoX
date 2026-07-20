@@ -65,9 +65,12 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
           </section>
 
           <section className="subtask-panel-field">
-            <h3 className="subtask-panel-label">Environments</h3>
+            <h3 className="subtask-panel-label">Deployments</h3>
             {deployedEnvironments.length > 0 ? (
-              <DeployedEnvironmentList deployedEnvironments={deployedEnvironments} />
+              <DeployedEnvironmentList
+                deployedEnvironments={deployedEnvironments}
+                layout="lines"
+              />
             ) : (
               <p className="subtask-panel-empty-field">Not deployed yet</p>
             )}

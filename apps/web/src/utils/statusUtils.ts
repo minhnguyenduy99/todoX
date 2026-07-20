@@ -51,5 +51,12 @@ export function groupTodosByStatus(todos: TodoDto[]): Map<TodoStatus, TodoDto[]>
     }
   }
 
+  for (const [status, list] of groups) {
+    groups.set(
+      status,
+      [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    );
+  }
+
   return groups;
 }

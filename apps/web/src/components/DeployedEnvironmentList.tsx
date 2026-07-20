@@ -5,10 +5,12 @@ import {
   type DeployedEnvironmentDto,
   type DeployedEnvironmentName,
 } from '@todo-platform/shared-types';
+import { sortDeploymentsForDisplay } from '../utils/deploymentSort';
 
 interface DeployedEnvironmentListProps {
   deployedEnvironments: DeployedEnvironmentDto[];
   compact?: boolean;
+  layout?: 'chips' | 'lines';
 }
 
 function envChipClassName(name: DeployedEnvironmentName): string {
@@ -63,7 +65,7 @@ function buildChipTitle(env: DeployedEnvironmentDto): string {
   return parts.join(' · ');
 }
 
-function sortEnvironments(
+function sortEnvironmentsByName(
   environments: DeployedEnvironmentDto[],
 ): DeployedEnvironmentDto[] {
   return [...environments].sort(
@@ -140,10 +142,37 @@ function EnvChip({
 export function DeployedEnvironmentList({
   deployedEnvironments,
   compact = false,
+  layout = 'chips',
 }: DeployedEnvironmentListProps) {
   if (deployedEnvironments.length === 0) return null;
 
-  const sorted = sortEnvironments(deployedEnvironments);
+  const sorted =
+    layout === 'lines'
+      ? sortDeploymentsForDisplay(deployedEnvironments)
+      : sortEnvironmentsByName(deployedEnvironments);
+
+  if (layout === 'lines') {
+    return (
+      <div className="deployment-lines" title="Deployments">
+        {sorted.map((env) => {
+          const deployment = env.deployment;
+          const duration = deployment ? formatDuration(deployment.durationMs) : null;
+          const rowClassName = `deployment-line env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
+
+          return (
+            <EnvChip
+              key={env.id}
+              env={env}
+              className={rowClassName}
+              title={buildChipTitle(env)}
+            >
+              <EnvChipContent env={env} deployment={deployment} duration={duration} />
+            </EnvChip>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div
