@@ -36,6 +36,7 @@ describe('deployment-enrichment', () => {
       id: 'mon-1',
       todoId: null,
       subtaskId: 'sub-1',
+      releaseDeploymentId: null,
       type: MonitorType.DEPLOYMENT,
       cron: '*/1 * * * *',
       enabled: true,

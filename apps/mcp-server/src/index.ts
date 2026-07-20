@@ -9,10 +9,13 @@ import {
 import { TodoApiClient } from '@todo-platform/shared-api';
 import {
   MonitorType,
+  ReleaseType,
   SubtaskStatus,
   TodoStatus,
+  type CreateReleaseDto,
   type CreateSubtaskDto,
   type CreateTodoDto,
+  type UpdateReleaseDto,
   type UpdateSubtaskDto,
   type UpdateTodoDto,
 } from '@todo-platform/shared-types';
@@ -43,6 +46,12 @@ import {
   todoServiceFields,
   updateServiceSchema,
 } from './services.js';
+import {
+  createReleaseSchema,
+  listTodosFilterSchema,
+  releaseIdParamSchema,
+  updateReleaseSchema,
+} from './releases.js';
 
 const deploymentMonitorConfigDescription =
   'Monitor-specific configuration. For type deployment (Jenkins): { "env": "dev"|"uat"|"uat-main"|"staging", "jobUrl": "https://jenkins.example.net/job/my-job", "buildNumber": 2790 }';
@@ -124,8 +133,9 @@ const tools = [
   },
   {
     name: 'list_todos',
-    description: 'List all todos with subtasks and monitors',
-    inputSchema: { type: 'object' as const, properties: {} },
+    description:
+      'List todos with optional filters for release eligibility (status, service, availableForRelease)',
+    inputSchema: listTodosFilterSchema,
   },
   {
     name: 'get_todo',
@@ -400,6 +410,33 @@ const tools = [
     inputSchema: serviceIdParamSchema,
   },
   {
+    name: 'create_release',
+    description:
+      'Create a staging or prod release from eligible todo IDs. Membership is stored as ReleaseMember rows. Optional deployments start Jenkins monitors.',
+    inputSchema: createReleaseSchema,
+  },
+  {
+    name: 'list_releases',
+    description: 'List all releases with members and per-service deployments',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'get_release',
+    description: 'Get a release by ID including members (active + archived) and deployments',
+    inputSchema: releaseIdParamSchema,
+  },
+  {
+    name: 'update_release',
+    description:
+      'Update a release: while not_started, append/remove todos or refresh content; on any non-successful release, attach or redeploy Jenkins URLs for non-successful member services.',
+    inputSchema: updateReleaseSchema,
+  },
+  {
+    name: 'cancel_release',
+    description: 'Cancel a not_started draft release and free its member todos',
+    inputSchema: releaseIdParamSchema,
+  },
+  {
     name: 'delete_subtask',
     description: 'Delete a subtask',
     inputSchema: {
@@ -443,7 +480,12 @@ function createMcpServer(): Server {
           });
           break;
         case 'list_todos':
-          result = await api.listTodos();
+          result = await api.listTodos({
+            status: a.status as TodoStatus | undefined,
+            serviceId: a.serviceId as string | undefined,
+            serviceKeyName: a.serviceKeyName as string | undefined,
+            availableForRelease: a.availableForRelease as boolean | undefined,
+          });
           break;
         case 'get_todo':
           result = await api.getTodo(a.id as string);
@@ -531,6 +573,33 @@ function createMcpServer(): Server {
           break;
         case 'delete_service':
           await api.deleteService(a.id as string);
+          result = { success: true, id: a.id };
+          break;
+        case 'create_release':
+          result = await api.createRelease({
+            type: a.type as ReleaseType,
+            releaseDate: a.releaseDate as string,
+            content: a.content as string,
+            todoIds: a.todoIds as string[],
+            deployments: a.deployments as CreateReleaseDto['deployments'],
+          });
+          break;
+        case 'list_releases':
+          result = await api.listReleases();
+          break;
+        case 'get_release':
+          result = await api.getRelease(a.id as string);
+          break;
+        case 'update_release':
+          result = await api.updateRelease(a.id as string, {
+            content: a.content as string | undefined,
+            todoIdsToAdd: a.todoIdsToAdd as string[] | undefined,
+            todoIdsToRemove: a.todoIdsToRemove as string[] | undefined,
+            deployments: a.deployments as UpdateReleaseDto['deployments'],
+          });
+          break;
+        case 'cancel_release':
+          await api.cancelRelease(a.id as string);
           result = { success: true, id: a.id };
           break;
         case 'delete_subtask':

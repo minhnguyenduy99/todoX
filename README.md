@@ -156,7 +156,7 @@ See `mcp-config.example.json` for both Docker and local examples.
 | Tool | Description |
 |------|-------------|
 | `create_todo` | Create a new todo |
-| `list_todos` | List all todos with subtasks and monitors |
+| `list_todos` | List todos (optional filters: `status`, `serviceId`, `serviceKeyName`, `availableForRelease`) |
 | `get_todo` | Get a single todo by ID |
 | `update_todo` | Update a todo |
 | `delete_todo` | Delete a todo |
@@ -170,6 +170,11 @@ See `mcp-config.example.json` for both Docker and local examples.
 | `create_service` | Add a service to the catalog (`keyName` slug, optional `displayName`) |
 | `update_service` | Update a service `displayName` (`keyName` is immutable) |
 | `delete_service` | Delete a service (clears association on referencing todos) |
+| `create_release` | Create a staging/prod release from eligible todo IDs (optional deploy URLs) |
+| `list_releases` | List releases with members and deployments |
+| `get_release` | Get a release by ID |
+| `update_release` | Draft append/remove/content while `not_started`, or attach/redeploy Jenkins URLs |
+| `cancel_release` | Cancel a `not_started` draft release |
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
 
@@ -200,6 +205,18 @@ DELETE /services/:id
 ```
 
 Todo `POST` / `PATCH` bodies accept optional `serviceId` and/or `serviceKeyName` to assign a catalog service.
+
+`GET /todos` accepts optional query filters: `status`, `serviceId`, `serviceKeyName`, `availableForRelease`.
+
+### Releases
+
+```
+GET    /releases
+POST   /releases
+GET    /releases/:id
+PATCH  /releases/:id
+DELETE /releases/:id
+```
 
 ### Subtasks
 
