@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import {
   DEPLOYED_ENVIRONMENT_ORDER,
+  DeploymentStatus,
   type DeployedEnvironmentDto,
   type DeployedEnvironmentName,
 } from '@todo-platform/shared-types';
@@ -24,6 +26,43 @@ function envChipClassName(name: DeployedEnvironmentName): string {
   }
 }
 
+function deploymentChipClassName(status: DeploymentStatus | undefined): string {
+  switch (status) {
+    case DeploymentStatus.IN_PROGRESS:
+      return 'env-chip-deploying';
+    case DeploymentStatus.SUCCESS:
+      return 'env-chip-deploy-success';
+    case DeploymentStatus.FAIL:
+      return 'env-chip-deploy-fail';
+    default:
+      return '';
+  }
+}
+
+function formatDuration(durationMs: number | null): string | null {
+  if (durationMs === null || durationMs <= 0) return null;
+  if (durationMs < 60_000) return `${Math.round(durationMs / 1000)}s`;
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.round((durationMs % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+function buildChipTitle(env: DeployedEnvironmentDto): string {
+  const deployment = env.deployment;
+  if (!deployment) return `Deployed to ${env.name}`;
+
+  const parts = [
+    `Deployed to ${env.name}`,
+    `Job: ${deployment.jobName}`,
+    `Build #${deployment.buildNumber}`,
+    `Status: ${deployment.status}`,
+  ];
+  const duration = formatDuration(deployment.durationMs);
+  if (duration) parts.push(`Duration: ${duration}`);
+  if (deployment.buildUrl) parts.push(deployment.buildUrl);
+  return parts.join(' · ');
+}
+
 function sortEnvironments(
   environments: DeployedEnvironmentDto[],
 ): DeployedEnvironmentDto[] {
@@ -31,6 +70,70 @@ function sortEnvironments(
     (a, b) =>
       DEPLOYED_ENVIRONMENT_ORDER.indexOf(a.name) -
       DEPLOYED_ENVIRONMENT_ORDER.indexOf(b.name),
+  );
+}
+
+function EnvChipContent({
+  env,
+  deployment,
+  duration,
+}: {
+  env: DeployedEnvironmentDto;
+  deployment: DeployedEnvironmentDto['deployment'];
+  duration: string | null;
+}) {
+  return (
+    <>
+      <span
+        className={`env-chip-label${deployment?.status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
+      >
+        {env.name}
+      </span>
+      {deployment && (
+        <span className="env-chip-meta">
+          {deployment.status === DeploymentStatus.IN_PROGRESS && (
+            <span className="env-chip-spinner" aria-hidden="true" />
+          )}
+          <span className="env-chip-build">#{deployment.buildNumber}</span>
+          {duration && <span className="env-chip-duration">{duration}</span>}
+        </span>
+      )}
+    </>
+  );
+}
+
+function EnvChip({
+  env,
+  className,
+  title,
+  children,
+}: {
+  env: DeployedEnvironmentDto;
+  className: string;
+  title: string;
+  children: ReactNode;
+}) {
+  const buildUrl = env.deployment?.buildUrl;
+
+  if (buildUrl) {
+    return (
+      <a
+        className={className}
+        href={buildUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <span className={className} title={title}>
+      {children}
+    </span>
   );
 }
 
@@ -47,15 +150,23 @@ export function DeployedEnvironmentList({
       className={`env-list${compact ? ' env-list-compact' : ''}`}
       title="Deployed environments"
     >
-      {sorted.map((env) => (
-        <span
-          key={env.id}
-          className={`env-chip ${envChipClassName(env.name)}`}
-          title={`Deployed to ${env.name}`}
-        >
-          {env.name}
-        </span>
-      ))}
+      {sorted.map((env) => {
+        const deployment = env.deployment;
+        const duration = deployment ? formatDuration(deployment.durationMs) : null;
+
+        const chipClassName = `env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
+
+        return (
+          <EnvChip
+            key={env.id}
+            env={env}
+            className={chipClassName}
+            title={buildChipTitle(env)}
+          >
+            <EnvChipContent env={env} deployment={deployment} duration={duration} />
+          </EnvChip>
+        );
+      })}
     </div>
   );
 }

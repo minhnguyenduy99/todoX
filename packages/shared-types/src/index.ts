@@ -51,11 +51,28 @@ export const DEPLOYED_ENVIRONMENT_ORDER: DeployedEnvironmentName[] = [
   DeployedEnvironmentName.STAGING,
 ];
 
+export enum DeploymentStatus {
+  IN_PROGRESS = 'in_progress',
+  SUCCESS = 'success',
+  FAIL = 'fail',
+}
+
+export interface DeploymentInfo {
+  env: DeployedEnvironmentName;
+  jobName: string;
+  buildNumber: number;
+  durationMs: number | null;
+  status: DeploymentStatus;
+  buildUrl?: string;
+  timestamp?: number;
+}
+
 export interface DeployedEnvironmentDto {
   id: string;
   name: DeployedEnvironmentName;
   createdAt: string;
   updatedAt: string;
+  deployment?: DeploymentInfo;
 }
 
 export interface AssociatedPullRequestDto {
@@ -82,6 +99,7 @@ export interface TodoDto {
   status: TodoStatus;
   createdAt: string;
   updatedAt: string;
+  monitor?: MonitorDto | null;
   subtasks?: SubtaskDto[];
   pullRequests?: AssociatedPullRequestDto[];
   deployedEnvironments?: DeployedEnvironmentDto[];
@@ -101,7 +119,8 @@ export interface SubtaskDto {
 
 export interface MonitorDto {
   id: string;
-  subtaskId: string;
+  todoId: string | null;
+  subtaskId: string | null;
   type: MonitorType;
   cron: string;
   enabled: boolean;
@@ -117,6 +136,7 @@ export interface CreateTodoDto {
   title: string;
   description?: string;
   status?: TodoStatus;
+  monitor?: CreateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
 }
@@ -125,6 +145,7 @@ export interface UpdateTodoDto {
   title?: string;
   description?: string;
   status?: TodoStatus;
+  monitor?: UpdateMonitorDto;
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
 }
@@ -191,10 +212,9 @@ export interface GitHubPrMonitorConfig {
 }
 
 export interface DeploymentMonitorConfig {
-  url: string;
-  method?: 'GET' | 'POST';
-  expectedStatus?: number;
-  deploymentId?: string;
+  env: DeployedEnvironmentName;
+  jobUrl: string;
+  buildNumber: number;
 }
 
 export interface HealthResponse {

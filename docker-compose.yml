@@ -40,6 +40,7 @@ services:
       RUN_MIGRATIONS: 'true'
       LOG_LEVEL: info
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      JENKINS_AUTH: ${JENKINS_AUTH:-}
     depends_on:
       postgres:
         condition: service_healthy

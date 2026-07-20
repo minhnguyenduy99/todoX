@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { WebSocketEvent, TodoDto, SubtaskDto, MonitorDto } from '@todo-platform/shared-types';
+import type { WebSocketEvent, TodoDto, SubtaskDto } from '@todo-platform/shared-types';
 import { getWsUrl } from '../api';
 
 export function useWebSocket(): boolean {
@@ -98,28 +98,10 @@ function handleEvent(
       break;
     }
     case 'monitor.created':
-    case 'monitor.updated': {
-      const monitor = event.payload as MonitorDto;
-      queryClient.setQueryData<TodoDto[]>(['todos'], (old = []) =>
-        old.map((todo) => ({
-          ...todo,
-          subtasks: (todo.subtasks ?? []).map((s) =>
-            s.id === monitor.subtaskId ? { ...s, monitor } : s,
-          ),
-        })),
-      );
-      break;
-    }
+    case 'monitor.updated':
     case 'monitor.deleted': {
-      const { id } = event.payload as { id: string };
-      queryClient.setQueryData<TodoDto[]>(['todos'], (old = []) =>
-        old.map((todo) => ({
-          ...todo,
-          subtasks: (todo.subtasks ?? []).map((s) =>
-            s.monitor?.id === id ? { ...s, monitor: null } : s,
-          ),
-        })),
-      );
+      // Refetch so todo/subtask deployedEnvironments stay in sync with server-side enrichment.
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
       break;
     }
   }

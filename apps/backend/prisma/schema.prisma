@@ -44,6 +44,7 @@ model Todo {
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
   subtasks             Subtask[]
+  monitor              Monitor?
   pullRequests         AssociatedPullRequest[]
   deployedEnvironments DeployedEnvironment[]
 
@@ -103,7 +104,8 @@ model DeployedEnvironment {
 
 model Monitor {
   id         String      @id @default(uuid())
-  subtaskId  String      @unique
+  todoId     String?     @unique
+  subtaskId  String?     @unique
   type       MonitorType
   cron       String
   enabled    Boolean     @default(true)
@@ -113,7 +115,8 @@ model Monitor {
   lastResult Json?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-  subtask    Subtask     @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  todo       Todo?       @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  subtask    Subtask?    @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
 
   @@map("monitors")
 }

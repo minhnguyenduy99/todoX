@@ -241,15 +241,39 @@ Set `GITHUB_TOKEN` for higher rate limits. Returns `success` when merged, `runni
 
 ### Deployment Monitor (`deployment`)
 
-Polls a deployment status endpoint via HTTP:
+Polls a Jenkins build via the Jenkins REST API:
 
 ```json
 {
-  "url": "https://api.example.com/deployments/abc123",
-  "expectedStatus": 200,
-  "deploymentId": "abc123"
+  "env": "dev",
+  "jobUrl": "https://jenkins2.example.net/job/backend-nodejs.backend.dev.deploy",
+  "buildNumber": 2790
 }
 ```
+
+Set `JENKINS_AUTH` to the base64-encoded `user:password` token (sent as `Authorization: Basic …`). Returns `running` while the build is in progress, `success` on `SUCCESS`, `failed` on `FAILURE`/`ABORTED`/`UNSTABLE`. Structured deployment info is available in `lastResult.metadata.deployment`.
+
+Monitors can attach to a **todo** or a **subtask** (at most one per entity). For todo-level deployments, pass `monitor` on `create_todo` / `update_todo` (MCP) or `POST /todos` / `PATCH /todos/:id` (REST) alongside `deployedEnvironments`:
+
+```json
+{
+  "title": "Release backend",
+  "deployedEnvironments": ["dev"],
+  "monitor": {
+    "type": "deployment",
+    "cron": "*/5 * * * *",
+    "config": {
+      "env": "dev",
+      "jobUrl": "https://jenkins2.example.net/job/backend-nodejs.backend.dev.deploy",
+      "buildNumber": 2790
+    }
+  }
+}
+```
+
+Todo-level monitors update deployment chips on the todo; they do not change subtask status. Subtask monitors still sync subtask status from poll results.
+
+When a **UAT** deployment monitor (todo or subtask) reports success for the first time, the parent todo status is set to `TESTING` automatically. When a **uat-main** deployment monitor reports success for the first time, the todo status is set to `WAIT_FOR_STAGING`.
 
 ## Project Structure
 
@@ -285,6 +309,7 @@ npm run test:integration --workspace=@todo-platform/backend
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
 | `PORT` | `3000` | Backend port |
 | `GITHUB_TOKEN` | — | GitHub API token for PR monitors |
+| `JENKINS_AUTH` | — | Base64 `user:password` for Jenkins deployment monitors |
 | `BACKEND_URL` | `http://localhost:3000` | Backend URL for MCP server |
 | `MCP_TRANSPORT` | `stdio` | MCP transport (`stdio` or `http`) |
 | `MCP_PORT` | `3001` | MCP HTTP port |

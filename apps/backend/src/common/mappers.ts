@@ -18,6 +18,10 @@ import type {
   Subtask,
   Todo,
 } from '@prisma/client';
+import {
+  collectDeploymentMonitors,
+  enrichDeployedEnvironments,
+} from './deployment-enrichment';
 
 export function toMonitorResult(value: unknown): MonitorResult | null {
   if (!value || typeof value !== 'object') return null;
@@ -38,6 +42,7 @@ export function toMonitorResult(value: unknown): MonitorResult | null {
 export function toMonitorDto(monitor: Monitor): MonitorDto {
   return {
     id: monitor.id,
+    todoId: monitor.todoId,
     subtaskId: monitor.subtaskId,
     type: monitor.type as MonitorType,
     cron: monitor.cron,
@@ -74,13 +79,38 @@ const apiNameByPrismaName: Record<string, DeployedEnvironmentName> = {
 
 export function toDeployedEnvironmentDto(
   env: DeployedEnvironment,
-): DeployedEnvironmentDto {
+): Omit<DeployedEnvironmentDto, 'deployment'> {
   return {
     id: env.id,
     name: apiNameByPrismaName[env.name],
     createdAt: env.createdAt.toISOString(),
     updatedAt: env.updatedAt.toISOString(),
   };
+}
+
+function enrichSubtaskDeployedEnvironments(
+  environments: DeployedEnvironment[] | undefined,
+  monitor: Monitor | null | undefined,
+): DeployedEnvironmentDto[] | undefined {
+  if (!environments) return undefined;
+  const monitorDto = monitor ? toMonitorDto(monitor) : null;
+  const monitors = collectDeploymentMonitors([monitorDto]);
+  return enrichDeployedEnvironments(environments, monitors, toDeployedEnvironmentDto);
+}
+
+function enrichTodoDeployedEnvironments(
+  environments: DeployedEnvironment[] | undefined,
+  subtasks: Array<Subtask & { monitor?: Monitor | null }> | undefined,
+  todoMonitor?: Monitor | null,
+): DeployedEnvironmentDto[] | undefined {
+  if (!environments) return undefined;
+  const monitors = collectDeploymentMonitors([
+    todoMonitor ? toMonitorDto(todoMonitor) : null,
+    ...(subtasks ?? []).map((subtask) =>
+      subtask.monitor ? toMonitorDto(subtask.monitor) : null,
+    ),
+  ]);
+  return enrichDeployedEnvironments(environments, monitors, toDeployedEnvironmentDto);
 }
 
 export function toSubtaskDto(
@@ -99,12 +129,16 @@ export function toSubtaskDto(
     updatedAt: subtask.updatedAt.toISOString(),
     monitor: subtask.monitor ? toMonitorDto(subtask.monitor) : null,
     pullRequests: subtask.pullRequests?.map(toAssociatedPullRequestDto),
-    deployedEnvironments: subtask.deployedEnvironments?.map(toDeployedEnvironmentDto),
+    deployedEnvironments: enrichSubtaskDeployedEnvironments(
+      subtask.deployedEnvironments,
+      subtask.monitor,
+    ),
   };
 }
 
 export function toTodoDto(
   todo: Todo & {
+    monitor?: Monitor | null;
     subtasks?: (Subtask & {
       monitor?: Monitor | null;
       pullRequests?: AssociatedPullRequest[];
@@ -121,8 +155,13 @@ export function toTodoDto(
     status: todo.status as TodoStatus,
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
+    monitor: todo.monitor ? toMonitorDto(todo.monitor) : null,
     subtasks: todo.subtasks?.map(toSubtaskDto),
     pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),
-    deployedEnvironments: todo.deployedEnvironments?.map(toDeployedEnvironmentDto),
+    deployedEnvironments: enrichTodoDeployedEnvironments(
+      todo.deployedEnvironments,
+      todo.subtasks,
+      todo.monitor,
+    ),
   };
 }

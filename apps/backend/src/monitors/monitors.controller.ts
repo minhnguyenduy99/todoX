@@ -30,11 +30,20 @@ export class MonitorsController {
 
   @Post('subtasks/:subtaskId/monitors')
   @ApiOperation({ summary: 'Create monitor for subtask' })
-  create(
+  createForSubtask(
     @Param('subtaskId') subtaskId: string,
     @Body() body: CreateMonitorBody,
   ) {
     return this.monitorsService.create(subtaskId, body);
+  }
+
+  @Post('todos/:todoId/monitors')
+  @ApiOperation({ summary: 'Create monitor for todo' })
+  createForTodo(
+    @Param('todoId') todoId: string,
+    @Body() body: CreateMonitorBody,
+  ) {
+    return this.monitorsService.createForTodo(todoId, body);
   }
 
   @Patch('monitors/:id')

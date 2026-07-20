@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { TodosService } from './todos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { MonitorsService } from '../monitors/monitors.service';
 import { TodoStatus } from '@todo-platform/shared-types';
 
 describe('TodosService', () => {
@@ -26,6 +27,10 @@ describe('TodosService', () => {
     $transaction: jest.Mock;
   };
   let events: { broadcast: jest.Mock };
+  let monitorsService: {
+    createForTodo: jest.Mock;
+    update: jest.Mock;
+  };
 
   const mockTodo = {
     id: 'todo-1',
@@ -34,6 +39,7 @@ describe('TodosService', () => {
     status: 'NOT_STARTED',
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
+    monitor: null,
     subtasks: [],
     pullRequests: [],
     deployedEnvironments: [],
@@ -59,12 +65,17 @@ describe('TodosService', () => {
       $transaction: jest.fn((ops) => Promise.all(ops)),
     };
     events = { broadcast: jest.fn() };
+    monitorsService = {
+      createForTodo: jest.fn(),
+      update: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TodosService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
+        { provide: MonitorsService, useValue: monitorsService },
       ],
     }).compile();
 

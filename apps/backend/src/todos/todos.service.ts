@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
+import { MonitorsService } from '../monitors/monitors.service';
 import { syncPullRequests } from '../common/pull-requests';
 import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { toTodoDto } from '../common/mappers';
@@ -24,6 +25,7 @@ const subtaskInclude = {
 };
 
 const todoInclude = {
+  monitor: true,
   subtasks: subtaskInclude,
   pullRequests: pullRequestInclude,
   deployedEnvironments: deployedEnvironmentInclude,
@@ -34,6 +36,7 @@ export class TodosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
+    private readonly monitorsService: MonitorsService,
   ) {}
 
   async findAll(): Promise<TodoDto[]> {
@@ -54,11 +57,14 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto): Promise<TodoDto> {
-    const { pullRequests, deployedEnvironments, ...todoData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, ...todoData } = dto;
     const todo = await this.prisma.todo.create({
       data: todoData,
-      include: todoInclude,
     });
+
+    if (monitor) {
+      await this.monitorsService.createForTodo(todo.id, monitor, { silent: true });
+    }
 
     await syncPullRequests(this.prisma, { todoId: todo.id }, pullRequests);
     await syncDeployedEnvironments(this.prisma, { todoId: todo.id }, deployedEnvironments);
@@ -75,12 +81,38 @@ export class TodosService {
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoDto> {
     await this.ensureExists(id);
-    const { pullRequests, deployedEnvironments, ...todoData } = dto;
+    const { monitor, pullRequests, deployedEnvironments, ...todoData } = dto;
 
     await this.prisma.todo.update({
       where: { id },
       data: todoData,
     });
+
+    if (monitor) {
+      const existing = await this.prisma.monitor.findUnique({
+        where: { todoId: id },
+      });
+
+      if (existing) {
+        await this.monitorsService.update(existing.id, monitor, { silent: true });
+      } else {
+        if (!monitor.type || !monitor.cron || !monitor.config) {
+          throw new BadRequestException(
+            'Todo has no monitor; provide type, cron, and config to create one',
+          );
+        }
+        await this.monitorsService.createForTodo(
+          id,
+          {
+            type: monitor.type,
+            cron: monitor.cron,
+            enabled: monitor.enabled,
+            config: monitor.config,
+          },
+          { silent: true },
+        );
+      }
+    }
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
     await syncDeployedEnvironments(this.prisma, { todoId: id }, deployedEnvironments);

@@ -35,6 +35,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     key={todo.id}
                     todo={todo}
                     compact
+                    compactUuid
                     showSubtasks={false}
                     showSubtaskCount
                     showStatus={false}

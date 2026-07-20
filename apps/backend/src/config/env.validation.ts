@@ -7,6 +7,7 @@ export const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   CORS_ORIGIN: z.string().default('*'),
   GITHUB_TOKEN: z.string().optional(),
+  JENKINS_AUTH: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 

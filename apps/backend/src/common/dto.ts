@@ -18,67 +18,6 @@ import {
 } from '@todo-platform/shared-types';
 import { AssociatedPullRequestBody } from './pull-request.dto';
 
-export class CreateTodoBody {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  title!: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional({ enum: TodoStatus })
-  @IsOptional()
-  @IsEnum(TodoStatus)
-  status?: TodoStatus;
-
-  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AssociatedPullRequestBody)
-  pullRequests?: AssociatedPullRequestBody[];
-
-  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
-  @IsOptional()
-  @IsArray()
-  @IsEnum(DeployedEnvironmentName, { each: true })
-  deployedEnvironments?: DeployedEnvironmentName[];
-}
-
-export class UpdateTodoBody {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  title?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional({ enum: TodoStatus })
-  @IsOptional()
-  @IsEnum(TodoStatus)
-  status?: TodoStatus;
-
-  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AssociatedPullRequestBody)
-  pullRequests?: AssociatedPullRequestBody[];
-
-  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
-  @IsOptional()
-  @IsArray()
-  @IsEnum(DeployedEnvironmentName, { each: true })
-  deployedEnvironments?: DeployedEnvironmentName[];
-}
-
 export class CreateSubtaskMonitorBody {
   @ApiProperty({ enum: MonitorType })
   @IsEnum(MonitorType)
@@ -120,6 +59,79 @@ export class UpdateSubtaskMonitorBody {
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
+}
+
+export class CreateTodoBody {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ enum: TodoStatus })
+  @IsOptional()
+  @IsEnum(TodoStatus)
+  status?: TodoStatus;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
+
+  @ApiPropertyOptional({ type: CreateSubtaskMonitorBody })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateSubtaskMonitorBody)
+  monitor?: CreateSubtaskMonitorBody;
+}
+
+export class UpdateTodoBody {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  title?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ enum: TodoStatus })
+  @IsOptional()
+  @IsEnum(TodoStatus)
+  status?: TodoStatus;
+
+  @ApiPropertyOptional({ type: [AssociatedPullRequestBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssociatedPullRequestBody)
+  pullRequests?: AssociatedPullRequestBody[];
+
+  @ApiPropertyOptional({ enum: DeployedEnvironmentName, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DeployedEnvironmentName, { each: true })
+  deployedEnvironments?: DeployedEnvironmentName[];
+
+  @ApiPropertyOptional({ type: UpdateSubtaskMonitorBody })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateSubtaskMonitorBody)
+  monitor?: UpdateSubtaskMonitorBody;
 }
 
 export class CreateSubtaskBody {

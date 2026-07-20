@@ -42,13 +42,37 @@ export class MonitorsService {
       throw new ConflictException(`Subtask ${subtaskId} already has a monitor`);
     }
 
+    return this.createMonitor({ subtaskId }, dto, options);
+  }
+
+  async createForTodo(
+    todoId: string,
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
+    const todo = await this.prisma.todo.findUnique({ where: { id: todoId } });
+    if (!todo) throw new NotFoundException(`Todo ${todoId} not found`);
+
+    const existing = await this.prisma.monitor.findUnique({ where: { todoId } });
+    if (existing) {
+      throw new ConflictException(`Todo ${todoId} already has a monitor`);
+    }
+
+    return this.createMonitor({ todoId }, dto, options);
+  }
+
+  private async createMonitor(
+    owner: { subtaskId: string } | { todoId: string },
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
     this.validateCron(dto.cron);
 
     const nextRunAt = this.computeNextRun(dto.cron);
 
     const monitor = await this.prisma.monitor.create({
       data: {
-        subtaskId,
+        ...owner,
         type: dto.type,
         cron: dto.cron,
         enabled: dto.enabled ?? true,

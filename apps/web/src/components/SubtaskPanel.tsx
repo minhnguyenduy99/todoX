@@ -3,6 +3,7 @@ import type { TodoDto } from '@todo-platform/shared-types';
 import { subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
+import { CopyableUuid } from './CopyableUuid';
 
 interface SubtaskPanelProps {
   todo: TodoDto;
@@ -31,9 +32,12 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
         aria-labelledby="subtask-panel-title"
       >
         <div className="subtask-panel-header">
-          <h2 id="subtask-panel-title" className="subtask-panel-title">
-            {todo.title}
-          </h2>
+          <div className="subtask-panel-header-content">
+            <CopyableUuid uuid={todo.id} />
+            <h2 id="subtask-panel-title" className="subtask-panel-title">
+              {todo.title}
+            </h2>
+          </div>
           <button type="button" className="subtask-panel-close" onClick={onClose} aria-label="Close">
             ×
           </button>

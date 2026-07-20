@@ -2,10 +2,12 @@ import type { TodoDto } from '@todo-platform/shared-types';
 import { todoStatusColor, subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
+import { CopyableUuid } from './CopyableUuid';
 
 interface TodoCardProps {
   todo: TodoDto;
   compact?: boolean;
+  compactUuid?: boolean;
   showSubtasks?: boolean;
   showSubtaskCount?: boolean;
   showStatus?: boolean;
@@ -16,6 +18,7 @@ interface TodoCardProps {
 export function TodoCard({
   todo,
   compact = false,
+  compactUuid = false,
   showSubtasks = true,
   showSubtaskCount = false,
   showStatus = true,
@@ -44,6 +47,7 @@ export function TodoCard({
     >
       <div className="todo-header">
         <div className="todo-header-content">
+          <CopyableUuid uuid={todo.id} compact={compactUuid} />
           <div className="todo-title">{todo.title}</div>
           <PullRequestList
             pullRequests={todo.pullRequests ?? []}

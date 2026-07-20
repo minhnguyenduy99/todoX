@@ -12,7 +12,9 @@ import {
   SubtaskStatus,
   TodoStatus,
   type CreateSubtaskDto,
+  type CreateTodoDto,
   type UpdateSubtaskDto,
+  type UpdateTodoDto,
 } from '@todo-platform/shared-types';
 import { createServer } from 'http';
 import { validateMcpEnv } from './config.js';
@@ -28,6 +30,27 @@ import {
   resolveCreateDeployedEnvironments,
   resolveUpdateDeployedEnvironments,
 } from './deployed-environments.js';
+
+const deploymentMonitorConfigDescription =
+  'Monitor-specific configuration. For type deployment (Jenkins): { "env": "dev"|"uat"|"uat-main"|"staging", "jobUrl": "https://jenkins.example.net/job/my-job", "buildNumber": 2790 }';
+
+const monitorInputSchema = {
+  type: 'object' as const,
+  description: 'Optional monitor configuration',
+  properties: {
+    type: { type: 'string', enum: Object.values(MonitorType) },
+    cron: {
+      type: 'string',
+      description: 'Cron expression e.g. */5 * * * *',
+    },
+    enabled: { type: 'boolean' },
+    config: {
+      type: 'object',
+      description: deploymentMonitorConfigDescription,
+    },
+  },
+  required: ['type', 'cron', 'config'],
+};
 
 const env = validateMcpEnv();
 const api = new TodoApiClient({ baseUrl: env.BACKEND_URL });
@@ -68,6 +91,7 @@ const tools = [
           description:
             'Mark a single deployed environment (use this instead of deployedEnvironments when adding one)',
         },
+        monitor: monitorInputSchema,
       },
       required: ['title'],
     },
@@ -120,6 +144,7 @@ const tools = [
           description:
             'Add one deployed environment (appends; omit deployedEnvironments when using this)',
         },
+        monitor: monitorInputSchema,
       },
       required: ['id'],
     },
@@ -157,7 +182,7 @@ const tools = [
             enabled: { type: 'boolean' },
             config: {
               type: 'object',
-              description: 'Monitor-specific configuration',
+              description: deploymentMonitorConfigDescription,
             },
           },
           required: ['type', 'cron', 'config'],
@@ -206,7 +231,7 @@ const tools = [
             type: { type: 'string', enum: Object.values(MonitorType) },
             cron: { type: 'string' },
             enabled: { type: 'boolean' },
-            config: { type: 'object' },
+            config: { type: 'object', description: deploymentMonitorConfigDescription },
           },
         },
         pullRequests: {
@@ -310,6 +335,7 @@ function createMcpServer(): Server {
             title: a.title as string,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
+            monitor: a.monitor as CreateTodoDto['monitor'],
             pullRequests: resolveCreatePullRequests(a),
             deployedEnvironments: resolveCreateDeployedEnvironments(a),
           });
@@ -325,6 +351,7 @@ function createMcpServer(): Server {
             title: a.title as string | undefined,
             description: a.description as string | undefined,
             status: a.status as TodoStatus | undefined,
+            monitor: a.monitor as UpdateTodoDto['monitor'],
             pullRequests: await resolveUpdatePullRequests(api, { todoId: a.id as string }, a),
             deployedEnvironments: await resolveUpdateDeployedEnvironments(
               api,

@@ -231,4 +231,130 @@ describe('Todos API (integration)', () => {
     expect(response.body.deployedEnvironments).toHaveLength(1);
     expect(response.body.deployedEnvironments[0].name).toBe('uat-main');
   });
+
+  it('POST /todos/:todoId/subtasks creates a subtask with a deployment monitor', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({ title: 'Deploy todo' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/subtasks`)
+      .send({
+        name: 'Deploy to dev',
+        deployedEnvironments: ['dev'],
+        monitor: {
+          type: 'deployment',
+          cron: '*/5 * * * *',
+          config: {
+            env: 'dev',
+            jobUrl: 'https://jenkins.example.net/job/my-job',
+            buildNumber: 100,
+          },
+        },
+      })
+      .expect(201);
+
+    expect(response.body.monitor).toMatchObject({
+      type: 'deployment',
+      cron: '*/5 * * * *',
+      config: {
+        env: 'dev',
+        jobUrl: 'https://jenkins.example.net/job/my-job',
+        buildNumber: 100,
+      },
+    });
+  });
+
+  it('POST /todos creates a todo with a deployment monitor', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Deploy todo with monitor',
+        deployedEnvironments: ['dev'],
+        monitor: {
+          type: 'deployment',
+          cron: '*/5 * * * *',
+          config: {
+            env: 'dev',
+            jobUrl: 'https://jenkins.example.net/job/my-job',
+            buildNumber: 200,
+          },
+        },
+      })
+      .expect(201);
+
+    expect(response.body.monitor).toMatchObject({
+      type: 'deployment',
+      todoId: response.body.id,
+      subtaskId: null,
+    });
+  });
+
+  it('POST /todos/:todoId/monitors creates a monitor for a todo', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({ title: 'Todo for monitor endpoint' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/monitors`)
+      .send({
+        type: 'deployment',
+        cron: '*/5 * * * *',
+        config: {
+          env: 'uat',
+          jobUrl: 'https://jenkins.example.net/job/uat-job',
+          buildNumber: 50,
+        },
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      type: 'deployment',
+      todoId: todoRes.body.id,
+      subtaskId: null,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/todos/${todoRes.body.id}/monitors`)
+      .send({
+        type: 'deployment',
+        cron: '*/5 * * * *',
+        config: { env: 'uat', jobUrl: 'https://jenkins.example.net/job/uat-job', buildNumber: 51 },
+      })
+      .expect(409);
+  });
+
+  it('PATCH /todos/:id adds a deployment monitor to an existing todo', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Todo to add monitor',
+        deployedEnvironments: ['staging'],
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/todos/${todoRes.body.id}`)
+      .send({
+        monitor: {
+          type: 'deployment',
+          cron: '*/10 * * * *',
+          config: {
+            env: 'staging',
+            jobUrl: 'https://jenkins.example.net/job/staging-job',
+            buildNumber: 10,
+          },
+        },
+      })
+      .expect(200);
+
+    expect(response.body.monitor).toMatchObject({
+      type: 'deployment',
+      cron: '*/10 * * * *',
+      todoId: todoRes.body.id,
+      subtaskId: null,
+    });
+  });
 });

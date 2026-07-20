@@ -13,10 +13,12 @@ import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorProviderRegistry } from '../monitors/providers/monitor-provider.registry';
-import { toMonitorDto, toSubtaskDto } from '../common/mappers';
+import { toMonitorDto, toMonitorResult, toSubtaskDto, toTodoDto } from '../common/mappers';
+import { resolveTodoStatusOnDeploySuccess } from '../common/todo-deployment-status-sync';
 import {
   MonitorResultStatus,
   SubtaskStatus,
+  TodoStatus,
   type MonitorResult,
 } from '@todo-platform/shared-types';
 import type { EnvConfig } from '../config/env.validation';
@@ -102,7 +104,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async executeMonitor(monitorId: string): Promise<void> {
     const monitor = await this.prisma.monitor.findUnique({
       where: { id: monitorId },
-      include: { subtask: true },
+      include: { subtask: true, todo: true },
     });
 
     if (!monitor || !monitor.enabled) return;
@@ -111,6 +113,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     const result = await provider.check(monitor.config);
 
     const nextRunAt = this.computeNextRun(monitor.cron);
+
+    const previousResult = toMonitorResult(monitor.lastResult);
 
     const updated = await this.prisma.monitor.update({
       where: { id: monitorId },
@@ -121,10 +125,63 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    await this.syncSubtaskStatus(monitor.subtaskId, result);
+    const todoId = monitor.todoId ?? monitor.subtask?.todoId ?? null;
+
+    if (monitor.subtaskId) {
+      await this.syncSubtaskStatus(monitor.subtaskId, result);
+    }
+
+    const nextTodoStatus = todoId
+      ? resolveTodoStatusOnDeploySuccess(
+          previousResult,
+          result,
+          monitor.type,
+          monitor.config,
+        )
+      : null;
+
+    if (todoId && nextTodoStatus) {
+      await this.syncTodoStatusOnDeploySuccess(todoId, nextTodoStatus);
+    } else if (monitor.todoId) {
+      await this.broadcastTodoUpdated(monitor.todoId);
+    }
 
     const dto = toMonitorDto(updated);
     this.events.broadcast('monitor.updated', dto);
+  }
+
+  private async syncTodoStatusOnDeploySuccess(
+    todoId: string,
+    status: TodoStatus,
+  ): Promise<void> {
+    await this.prisma.todo.update({
+      where: { id: todoId },
+      data: { status },
+    });
+    await this.broadcastTodoUpdated(todoId);
+  }
+
+  private async broadcastTodoUpdated(todoId: string): Promise<void> {
+    const todo = await this.prisma.todo.findUnique({
+      where: { id: todoId },
+      include: {
+        monitor: true,
+        subtasks: {
+          include: {
+            monitor: true,
+            pullRequests: { orderBy: { number: 'asc' } },
+            deployedEnvironments: { orderBy: { name: 'asc' } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        pullRequests: { orderBy: { number: 'asc' } },
+        deployedEnvironments: { orderBy: { name: 'asc' } },
+      },
+    });
+
+    if (todo) {
+      this.events.broadcast('todo.updated', toTodoDto(todo));
+    }
   }
 
   private async syncSubtaskStatus(
