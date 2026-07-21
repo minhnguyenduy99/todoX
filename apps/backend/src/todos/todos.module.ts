@@ -3,9 +3,10 @@ import { TodosController } from './todos.controller';
 import { TodosService } from './todos.service';
 import { MonitorsModule } from '../monitors/monitors.module';
 import { ReleasesModule } from '../releases/releases.module';
+import { TestcaseScansModule } from '../testcase-scans/testcase-scans.module';
 
 @Module({
-  imports: [MonitorsModule, ReleasesModule],
+  imports: [MonitorsModule, ReleasesModule, TestcaseScansModule],
   controllers: [TodosController],
   providers: [TodosService],
   exports: [TodosService],

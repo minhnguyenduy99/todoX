@@ -10,6 +10,8 @@ import type {
   ReleaseDto,
   ServiceDto,
   SubtaskDto,
+  TestcaseScanDto,
+  TestcaseScanInput,
   TodoDto,
   UpdateMonitorDto,
   UpdateReleaseDto,
@@ -85,6 +87,14 @@ export class TodoApiClient {
 
   deleteTodo(id: string): Promise<void> {
     return this.request<void>('DELETE', `/todos/${id}`);
+  }
+
+  addTestcaseScan(todoId: string, data: TestcaseScanInput): Promise<TestcaseScanDto> {
+    return this.request<TestcaseScanDto>('POST', `/todos/${todoId}/testcase-scans`, data);
+  }
+
+  deleteTestcaseScan(todoId: string, scanId: string): Promise<void> {
+    return this.request<void>('DELETE', `/todos/${todoId}/testcase-scans/${scanId}`);
   }
 
   // Services

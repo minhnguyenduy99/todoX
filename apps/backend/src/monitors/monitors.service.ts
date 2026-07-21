@@ -4,6 +4,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { toMonitorDto } from '../common/mappers';
 import type { CreateMonitorDto, MonitorDto, UpdateMonitorDto } from '@todo-platform/shared-types';
+import { MonitorType } from '@todo-platform/shared-types';
 import type { Prisma } from '@prisma/client';
 import parser from 'cron-parser';
 
@@ -62,7 +63,11 @@ export class MonitorsService {
   }
 
   private async createMonitor(
-    owner: { subtaskId: string } | { todoId: string } | { releaseDeploymentId: string },
+    owner:
+      | { subtaskId: string }
+      | { todoId: string }
+      | { releaseDeploymentId: string }
+      | { testcaseScanId: string },
     dto: CreateMonitorDto,
     options?: { silent?: boolean },
   ): Promise<MonitorDto> {
@@ -83,6 +88,9 @@ export class MonitorsService {
 
     if (monitor.enabled) {
       await this.scheduler.scheduleMonitor(monitor.id, monitor.cron);
+      if (dto.type === MonitorType.TESTCASE_SCAN) {
+        this.scheduler.runMonitorNow(monitor.id);
+      }
     }
 
     const result = toMonitorDto(monitor);
@@ -112,6 +120,28 @@ export class MonitorsService {
     }
 
     return this.createMonitor({ releaseDeploymentId }, dto, options);
+  }
+
+  async createForTestcaseScan(
+    testcaseScanId: string,
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
+    const scan = await this.prisma.testcaseScan.findUnique({
+      where: { id: testcaseScanId },
+    });
+    if (!scan) {
+      throw new NotFoundException(`TestcaseScan ${testcaseScanId} not found`);
+    }
+
+    const existing = await this.prisma.monitor.findUnique({
+      where: { testcaseScanId },
+    });
+    if (existing) {
+      await this.remove(existing.id);
+    }
+
+    return this.createMonitor({ testcaseScanId }, dto, options);
   }
 
   async update(

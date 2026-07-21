@@ -12,6 +12,7 @@ import {
   ReleaseType,
   SubtaskStatus,
   TodoStatus,
+  TestcaseScanStatus,
   type CreateReleaseDto,
   type CreateSubtaskDto,
   type CreateTodoDto,
@@ -55,6 +56,24 @@ import {
 
 const deploymentMonitorConfigDescription =
   'Monitor-specific configuration. For type deployment (Jenkins): { "env": "dev"|"uat"|"uat-main"|"staging", "jobUrl": "https://jenkins.example.net/job/my-job", "buildNumber": 2790 }';
+
+const testcaseScanSchema = {
+  type: 'object' as const,
+  properties: {
+    name: { type: 'string', description: 'Scan name or label' },
+    status: {
+      type: 'string',
+      enum: Object.values(TestcaseScanStatus),
+      description: 'Optional when jobUrl is provided (defaults to scanning)',
+    },
+    jobUrl: {
+      type: 'string',
+      description:
+        'Optional Jenkins build URL (e.g. https://jenkins-scan.example.net/job/test/42). When set, a scan monitor is scheduled.',
+    },
+  },
+  required: ['name'],
+};
 
 const monitorInputSchema = {
   type: 'object' as const,
@@ -127,6 +146,11 @@ const tools = [
         serviceId: todoServiceFields.serviceId,
         serviceKeyName: todoServiceFields.serviceKeyName,
         monitor: monitorInputSchema,
+        testcaseScanHistory: {
+          type: 'array',
+          description: 'Initial testcase scan history records',
+          items: testcaseScanSchema,
+        },
       },
       required: ['title'],
     },
@@ -202,8 +226,28 @@ const tools = [
             'Service key (optional; pass null to clear — ignores serviceId when null)',
         },
         monitor: monitorInputSchema,
+        testcaseScanHistory: {
+          type: 'array',
+          description:
+            'Replace testcase scan history (omit to leave unchanged, pass [] to remove all)',
+          items: testcaseScanSchema,
+        },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'add_testcase_scan',
+    description: 'Append a testcase scan history record to a todo',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        todoId: { type: 'string', description: 'Todo ID' },
+        name: testcaseScanSchema.properties.name,
+        status: testcaseScanSchema.properties.status,
+        jobUrl: testcaseScanSchema.properties.jobUrl,
+      },
+      required: ['todoId', 'name'],
     },
   },
   {
@@ -477,6 +521,7 @@ function createMcpServer(): Server {
             associatedTickets: resolveCreateAssociatedTickets(a),
             serviceId: a.serviceId as string | null | undefined,
             serviceKeyName: a.serviceKeyName as string | null | undefined,
+            testcaseScanHistory: a.testcaseScanHistory as CreateTodoDto['testcaseScanHistory'],
           });
           break;
         case 'list_todos':
@@ -509,6 +554,14 @@ function createMcpServer(): Server {
             ),
             serviceId: a.serviceId as string | null | undefined,
             serviceKeyName: a.serviceKeyName as string | null | undefined,
+            testcaseScanHistory: a.testcaseScanHistory as UpdateTodoDto['testcaseScanHistory'],
+          });
+          break;
+        case 'add_testcase_scan':
+          result = await api.addTestcaseScan(a.todoId as string, {
+            name: a.name as string,
+            status: a.status as TestcaseScanStatus | undefined,
+            jobUrl: a.jobUrl as string | undefined,
           });
           break;
         case 'delete_todo':

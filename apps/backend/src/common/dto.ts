@@ -19,6 +19,7 @@ import {
 } from '@todo-platform/shared-types';
 import { AssociatedPullRequestBody } from './pull-request.dto';
 import { AssociatedTicketBody } from './associated-ticket.dto';
+import { TestcaseScanBody } from './testcase-scan.dto';
 
 export class CreateSubtaskMonitorBody {
   @ApiProperty({ enum: MonitorType })
@@ -105,6 +106,13 @@ export class CreateTodoBody {
   @Type(() => AssociatedTicketBody)
   associatedTickets?: AssociatedTicketBody[];
 
+  @ApiPropertyOptional({ type: [TestcaseScanBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TestcaseScanBody)
+  testcaseScanHistory?: TestcaseScanBody[];
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
@@ -158,6 +166,13 @@ export class UpdateTodoBody {
   @ValidateNested({ each: true })
   @Type(() => AssociatedTicketBody)
   associatedTickets?: AssociatedTicketBody[];
+
+  @ApiPropertyOptional({ type: [TestcaseScanBody] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TestcaseScanBody)
+  testcaseScanHistory?: TestcaseScanBody[];
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   @IsOptional()

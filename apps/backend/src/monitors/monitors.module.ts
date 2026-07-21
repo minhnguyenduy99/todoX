@@ -5,6 +5,7 @@ import {
   DeploymentMonitorProvider,
   GitHubPrMonitorProvider,
   HttpMonitorProvider,
+  TestcaseScanMonitorProvider,
 } from './providers/monitor-providers';
 import { MonitorProviderRegistry } from './providers/monitor-provider.registry';
 import { SchedulerModule } from '../scheduler/scheduler.module';
@@ -17,6 +18,7 @@ import { SchedulerModule } from '../scheduler/scheduler.module';
     HttpMonitorProvider,
     GitHubPrMonitorProvider,
     DeploymentMonitorProvider,
+    TestcaseScanMonitorProvider,
     MonitorProviderRegistry,
   ],
   exports: [MonitorProviderRegistry, MonitorsService],

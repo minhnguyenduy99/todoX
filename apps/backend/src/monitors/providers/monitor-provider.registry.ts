@@ -4,6 +4,7 @@ import {
   DeploymentMonitorProvider,
   GitHubPrMonitorProvider,
   HttpMonitorProvider,
+  TestcaseScanMonitorProvider,
 } from './monitor-providers';
 
 @Injectable()
@@ -14,12 +15,14 @@ export class MonitorProviderRegistry implements OnModuleInit {
     private readonly httpProvider: HttpMonitorProvider,
     private readonly githubPrProvider: GitHubPrMonitorProvider,
     private readonly deploymentProvider: DeploymentMonitorProvider,
+    private readonly testcaseScanProvider: TestcaseScanMonitorProvider,
   ) {}
 
   onModuleInit(): void {
     this.register(this.httpProvider);
     this.register(this.githubPrProvider);
     this.register(this.deploymentProvider);
+    this.register(this.testcaseScanProvider);
   }
 
   register(provider: MonitorProvider): void {

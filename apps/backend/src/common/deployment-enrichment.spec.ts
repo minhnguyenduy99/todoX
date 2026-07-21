@@ -37,6 +37,7 @@ describe('deployment-enrichment', () => {
       todoId: null,
       subtaskId: 'sub-1',
       releaseDeploymentId: null,
+      testcaseScanId: null,
       type: MonitorType.DEPLOYMENT,
       cron: '*/1 * * * *',
       enabled: true,
@@ -51,7 +52,7 @@ describe('deployment-enrichment', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
       ...overrides,
-    };
+    } as MonitorDto;
   }
 
   describe('extractDeploymentInfo', () => {

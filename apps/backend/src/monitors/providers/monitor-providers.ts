@@ -8,6 +8,8 @@ import {
   type MonitorProvider,
   type MonitorResult,
   type GitHubPrMonitorConfig,
+  type ScanJobInfo,
+  type TestcaseScanMonitorConfig,
 } from '@todo-platform/shared-types';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -173,6 +175,39 @@ export function mapJenkinsBuildToDeployment(
   return { deployment, monitorStatus };
 }
 
+export function mapJenkinsBuildToScan(
+  cfg: TestcaseScanMonitorConfig,
+  build: JenkinsBuildResponse,
+): { scan: ScanJobInfo; monitorStatus: MonitorResultStatus } {
+  let scanStatus: DeploymentStatus;
+  let monitorStatus: MonitorResultStatus;
+
+  if (build.building) {
+    scanStatus = DeploymentStatus.IN_PROGRESS;
+    monitorStatus = MonitorResultStatus.RUNNING;
+  } else if (build.result === 'SUCCESS' || build.result === 'UNSTABLE') {
+    scanStatus = DeploymentStatus.SUCCESS;
+    monitorStatus = MonitorResultStatus.SUCCESS;
+  } else if (build.result === 'FAILURE' || build.result === 'ABORTED') {
+    scanStatus = DeploymentStatus.FAIL;
+    monitorStatus = MonitorResultStatus.FAILED;
+  } else {
+    scanStatus = DeploymentStatus.IN_PROGRESS;
+    monitorStatus = MonitorResultStatus.RUNNING;
+  }
+
+  const scan: ScanJobInfo = {
+    jobName: parseJobNameFromUrl(cfg.jobUrl),
+    buildNumber: cfg.buildNumber,
+    durationMs: build.duration > 0 ? build.duration : null,
+    status: scanStatus,
+    buildUrl: build.url,
+    timestamp: build.timestamp,
+  };
+
+  return { scan, monitorStatus };
+}
+
 @Injectable()
 export class DeploymentMonitorProvider implements MonitorProvider {
   readonly type = MonitorType.DEPLOYMENT;
@@ -236,6 +271,74 @@ export class DeploymentMonitorProvider implements MonitorProvider {
       return {
         status: MonitorResultStatus.FAILED,
         message: `Jenkins deployment check failed: ${message}`,
+      };
+    }
+  }
+}
+
+@Injectable()
+export class TestcaseScanMonitorProvider implements MonitorProvider {
+  readonly type = MonitorType.TESTCASE_SCAN;
+
+  constructor(private readonly configService: ConfigService<EnvConfig, true>) {}
+
+  async check(config: unknown): Promise<MonitorResult> {
+    const cfg = config as TestcaseScanMonitorConfig;
+    if (!cfg?.jobUrl || cfg.buildNumber === undefined || cfg.buildNumber === null) {
+      return {
+        status: MonitorResultStatus.FAILED,
+        message: 'Missing jobUrl or buildNumber in config',
+      };
+    }
+
+    const auth = this.configService.get('JENKINS_SCAN_AUTH', { infer: true });
+    if (!auth) {
+      return {
+        status: MonitorResultStatus.FAILED,
+        message: 'JENKINS_SCAN_AUTH is not configured',
+      };
+    }
+
+    const jobUrl = cfg.jobUrl.replace(/\/+$/, '');
+    const apiUrl = `${jobUrl}/${cfg.buildNumber}/api/json?tree=building,result,duration,timestamp,url`;
+
+    try {
+      const response = await fetch(apiUrl, {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!response.ok) {
+        return {
+          status: MonitorResultStatus.FAILED,
+          message: `Jenkins API returned ${response.status}`,
+          metadata: { statusCode: response.status },
+        };
+      }
+
+      const build = (await response.json()) as JenkinsBuildResponse;
+      const { scan, monitorStatus } = mapJenkinsBuildToScan(cfg, build);
+
+      const statusLabel =
+        scan.status === DeploymentStatus.IN_PROGRESS
+          ? 'in progress'
+          : scan.status === DeploymentStatus.SUCCESS
+            ? 'completed'
+            : 'failed';
+
+      return {
+        status: monitorStatus,
+        message: `Testcase scan build #${cfg.buildNumber} ${statusLabel}`,
+        metadata: { scan },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        status: MonitorResultStatus.FAILED,
+        message: `Jenkins testcase scan check failed: ${message}`,
       };
     }
   }

@@ -2,7 +2,9 @@ import {
   DeploymentMonitorProvider,
   GitHubPrMonitorProvider,
   HttpMonitorProvider,
+  TestcaseScanMonitorProvider,
   mapJenkinsBuildToDeployment,
+  mapJenkinsBuildToScan,
   parseJobNameFromUrl,
 } from './monitor-providers';
 import {
@@ -212,5 +214,63 @@ describe('DeploymentMonitorProvider', () => {
     const result = await provider.check(cfg);
     expect(result.status).toBe(MonitorResultStatus.FAILED);
     expect(result.message).toContain('network down');
+  });
+});
+
+describe('mapJenkinsBuildToScan', () => {
+  const cfg = {
+    jobUrl: 'https://jenkins-scan.example.net/job/test-scan',
+    buildNumber: 42,
+  };
+
+  it('maps building true to in_progress', () => {
+    const { scan, monitorStatus } = mapJenkinsBuildToScan(cfg, {
+      building: true,
+      result: null,
+      duration: 0,
+      timestamp: 1,
+      url: 'https://jenkins-scan.example.net/job/test-scan/42/',
+    });
+    expect(scan.status).toBe(DeploymentStatus.IN_PROGRESS);
+    expect(monitorStatus).toBe(MonitorResultStatus.RUNNING);
+  });
+
+  it('maps UNSTABLE to success when build finished', () => {
+    const { scan, monitorStatus } = mapJenkinsBuildToScan(cfg, {
+      building: false,
+      result: 'UNSTABLE',
+      duration: 1000,
+      timestamp: 1,
+      url: 'https://jenkins-scan.example.net/job/test-scan/42/',
+    });
+    expect(scan.status).toBe(DeploymentStatus.SUCCESS);
+    expect(monitorStatus).toBe(MonitorResultStatus.SUCCESS);
+  });
+});
+
+describe('TestcaseScanMonitorProvider', () => {
+  const cfg = {
+    jobUrl: 'https://jenkins-scan.example.net/job/test-scan',
+    buildNumber: 42,
+  };
+
+  const createProvider = (auth?: string) =>
+    new TestcaseScanMonitorProvider({
+      get: (_key: string) => auth,
+    } as never);
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('fails when JENKINS_SCAN_AUTH is missing', async () => {
+    const provider = createProvider(undefined);
+    const result = await provider.check(cfg);
+    expect(result.status).toBe(MonitorResultStatus.FAILED);
+    expect(result.message).toContain('JENKINS_SCAN_AUTH');
+  });
+
+  it('has correct type', () => {
+    expect(createProvider().type).toBe(MonitorType.TESTCASE_SCAN);
   });
 });

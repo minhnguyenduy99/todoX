@@ -41,6 +41,7 @@ services:
       LOG_LEVEL: info
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       JENKINS_AUTH: ${JENKINS_AUTH:-}
+      JENKINS_SCAN_AUTH: ${JENKINS_SCAN_AUTH:-}
     depends_on:
       postgres:
         condition: service_healthy

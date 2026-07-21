@@ -17,6 +17,10 @@ import { toMonitorDto, toMonitorResult, toSubtaskDto, toTodoDto } from '../commo
 import { resolveTodoStatusOnDeploySuccess } from '../common/todo-deployment-status-sync';
 import { mapMonitorResultToDeploymentStatus } from '../common/release-deployment-status-sync';
 import {
+  isTerminalTestcaseScanStatus,
+  mapMonitorResultToTestcaseScanStatus,
+} from '../common/testcase-scan-status-sync';
+import {
   MonitorResultStatus,
   ReleaseDeploymentStatus,
   SubtaskStatus,
@@ -76,6 +80,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async scheduleMonitor(monitorId: string, cron: string): Promise<void> {
+    await this.unscheduleMonitor(monitorId);
     await this.queue.add(
       'check',
       { monitorId },
@@ -88,6 +93,12 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         backoff: { type: 'exponential', delay: 5000 },
       },
     );
+  }
+
+  runMonitorNow(monitorId: string): void {
+    void this.executeMonitor(monitorId).catch((err) => {
+      this.logger.error({ monitorId, err }, 'Immediate monitor check failed');
+    });
   }
 
   async unscheduleMonitor(monitorId: string): Promise<void> {
@@ -109,7 +120,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async executeMonitor(monitorId: string): Promise<void> {
     const monitor = await this.prisma.monitor.findUnique({
       where: { id: monitorId },
-      include: { subtask: true, todo: true, releaseDeployment: true },
+      include: { subtask: true, todo: true, releaseDeployment: true, testcaseScan: true },
     });
 
     if (!monitor || !monitor.enabled) return;
@@ -140,6 +151,13 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (monitor.testcaseScanId) {
+      await this.syncTestcaseScanMonitor(monitor.testcaseScanId, result, monitorId);
+      const dto = toMonitorDto(updated);
+      this.events.broadcast('monitor.updated', dto);
+      return;
+    }
+
     const todoId = monitor.todoId ?? monitor.subtask?.todoId ?? null;
 
     if (monitor.subtaskId) {
@@ -163,6 +181,35 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
     const dto = toMonitorDto(updated);
     this.events.broadcast('monitor.updated', dto);
+  }
+
+  private async syncTestcaseScanMonitor(
+    testcaseScanId: string,
+    result: MonitorResult,
+    monitorId: string,
+  ): Promise<void> {
+    const scan = await this.prisma.testcaseScan.findUnique({
+      where: { id: testcaseScanId },
+    });
+    if (!scan) return;
+
+    const nextStatus = mapMonitorResultToTestcaseScanStatus(result);
+    if (!nextStatus) return;
+
+    await this.prisma.testcaseScan.update({
+      where: { id: testcaseScanId },
+      data: { status: nextStatus },
+    });
+
+    if (isTerminalTestcaseScanStatus(nextStatus)) {
+      await this.prisma.monitor.update({
+        where: { id: monitorId },
+        data: { enabled: false, nextRunAt: null },
+      });
+      await this.unscheduleMonitor(monitorId);
+    }
+
+    await this.broadcastTodoUpdated(scan.todoId);
   }
 
   private async syncReleaseDeploymentMonitor(
@@ -203,15 +250,16 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         subtasks: {
           include: {
             monitor: true,
-            pullRequests: { orderBy: { number: 'asc' } },
-            deployedEnvironments: { orderBy: { name: 'asc' } },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
         pullRequests: { orderBy: { number: 'asc' } },
         deployedEnvironments: { orderBy: { name: 'asc' } },
       },
-    });
+      orderBy: { createdAt: 'asc' },
+    },
+    pullRequests: { orderBy: { number: 'asc' } },
+    deployedEnvironments: { orderBy: { name: 'asc' } },
+    testcaseScans: { orderBy: { createdAt: 'desc' } },
+  },
+});
 
     if (todo) {
       this.events.broadcast('todo.updated', toTodoDto(todo));

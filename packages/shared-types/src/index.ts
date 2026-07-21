@@ -18,6 +18,7 @@ export enum MonitorType {
   HTTP = 'http',
   GITHUB_PR = 'github_pr',
   DEPLOYMENT = 'deployment',
+  TESTCASE_SCAN = 'testcase_scan',
 }
 
 export enum MonitorResultStatus {
@@ -55,6 +56,21 @@ export enum DeploymentStatus {
   IN_PROGRESS = 'in_progress',
   SUCCESS = 'success',
   FAIL = 'fail',
+}
+
+export enum TestcaseScanStatus {
+  SCANNING = 'scanning',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
+export interface ScanJobInfo {
+  jobName: string;
+  buildNumber: number;
+  durationMs: number | null;
+  status: DeploymentStatus;
+  buildUrl?: string;
+  timestamp?: number;
 }
 
 export interface DeploymentInfo {
@@ -112,6 +128,22 @@ export interface AssociatedTicketInput {
   link: string;
 }
 
+export interface TestcaseScanDto {
+  id: string;
+  todoId: string;
+  name: string;
+  status: TestcaseScanStatus;
+  jobUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TestcaseScanInput {
+  name: string;
+  status?: TestcaseScanStatus;
+  jobUrl?: string | null;
+}
+
 export interface ServiceDto {
   id: string;
   keyName: string;
@@ -142,6 +174,7 @@ export interface TodoDto {
   pullRequests?: AssociatedPullRequestDto[];
   deployedEnvironments?: DeployedEnvironmentDto[];
   associatedTickets?: AssociatedTicketDto[];
+  testcaseScanHistory?: TestcaseScanDto[];
 }
 
 export interface SubtaskDto {
@@ -161,6 +194,7 @@ export interface MonitorDto {
   todoId: string | null;
   subtaskId: string | null;
   releaseDeploymentId: string | null;
+  testcaseScanId: string | null;
   type: MonitorType;
   cron: string;
   enabled: boolean;
@@ -182,6 +216,7 @@ export interface CreateTodoDto {
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
   associatedTickets?: AssociatedTicketInput[];
+  testcaseScanHistory?: TestcaseScanInput[];
 }
 
 export interface UpdateTodoDto {
@@ -194,6 +229,7 @@ export interface UpdateTodoDto {
   pullRequests?: AssociatedPullRequestInput[];
   deployedEnvironments?: DeployedEnvironmentName[];
   associatedTickets?: AssociatedTicketInput[];
+  testcaseScanHistory?: TestcaseScanInput[];
 }
 
 export interface CreateSubtaskDto {
@@ -261,6 +297,11 @@ export interface GitHubPrMonitorConfig {
 
 export interface DeploymentMonitorConfig {
   env: DeployedEnvironmentName | 'prod';
+  jobUrl: string;
+  buildNumber: number;
+}
+
+export interface TestcaseScanMonitorConfig {
   jobUrl: string;
   buildNumber: number;
 }

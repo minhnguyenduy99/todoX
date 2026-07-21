@@ -37,6 +37,7 @@ describe('Todos API (integration)', () => {
 
   beforeEach(async () => {
     await prisma.monitor.deleteMany();
+    await prisma.testcaseScan.deleteMany();
     await prisma.subtask.deleteMany();
     await prisma.todo.deleteMany();
     await prisma.service.deleteMany();
@@ -601,6 +602,78 @@ describe('Todos API (integration)', () => {
         .patch(`/todos/${createRes.body.id}`)
         .send({ serviceId: beta.body.id, serviceKeyName: 'alpha' })
         .expect(400);
+    });
+  });
+
+  describe('testcase scan history', () => {
+    it('POST /todos/:id/testcase-scans creates scan without monitor when no jobUrl', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Scan todo' })
+        .expect(201);
+
+      const scanRes = await request(app.getHttpServer())
+        .post(`/todos/${createRes.body.id}/testcase-scans`)
+        .send({ name: 'Manual scan', status: 'completed' })
+        .expect(201);
+
+      expect(scanRes.body.name).toBe('Manual scan');
+      expect(scanRes.body.status).toBe('completed');
+
+      const monitors = await prisma.monitor.findMany();
+      expect(monitors).toHaveLength(0);
+    });
+
+    it('POST /todos/:id/testcase-scans creates scan with monitor when jobUrl provided', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Scan todo' })
+        .expect(201);
+
+      const scanRes = await request(app.getHttpServer())
+        .post(`/todos/${createRes.body.id}/testcase-scans`)
+        .send({
+          name: 'Regression',
+          jobUrl: 'https://jenkins-scan.example.net/job/test-scan/42',
+        })
+        .expect(201);
+
+      expect(scanRes.body.status).toBe('scanning');
+
+      const monitor = await prisma.monitor.findFirst({
+        where: { testcaseScanId: scanRes.body.id },
+      });
+      expect(monitor).toBeTruthy();
+      expect(monitor?.type).toBe('testcase_scan');
+
+      const todoRes = await request(app.getHttpServer())
+        .get(`/todos/${createRes.body.id}`)
+        .expect(200);
+      expect(todoRes.body.testcaseScanHistory).toHaveLength(1);
+    });
+
+    it('DELETE /todos/:id/testcase-scans/:scanId removes scan and monitor', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .send({ title: 'Scan todo' })
+        .expect(201);
+
+      const scanRes = await request(app.getHttpServer())
+        .post(`/todos/${createRes.body.id}/testcase-scans`)
+        .send({
+          name: 'Regression',
+          jobUrl: 'https://jenkins-scan.example.net/job/test-scan/42',
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`/todos/${createRes.body.id}/testcase-scans/${scanRes.body.id}`)
+        .expect(200);
+
+      const monitor = await prisma.monitor.findFirst({
+        where: { testcaseScanId: scanRes.body.id },
+      });
+      expect(monitor).toBeNull();
     });
   });
 });

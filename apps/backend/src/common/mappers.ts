@@ -18,7 +18,9 @@ import {
   type ReleaseMemberSummaryDto,
   type ServiceDto,
   type SubtaskDto,
+  type TestcaseScanDto,
   type TodoDto,
+  TestcaseScanStatus,
 } from '@todo-platform/shared-types';
 import type {
   AssociatedPullRequest,
@@ -30,6 +32,7 @@ import type {
   ReleaseDeployment,
   Service,
   Subtask,
+  TestcaseScan,
   Todo,
 } from '@prisma/client';
 import {
@@ -59,6 +62,7 @@ export function toMonitorDto(monitor: Monitor): MonitorDto {
     todoId: monitor.todoId,
     subtaskId: monitor.subtaskId,
     releaseDeploymentId: monitor.releaseDeploymentId ?? null,
+    testcaseScanId: monitor.testcaseScanId ?? null,
     type: monitor.type as MonitorType,
     cron: monitor.cron,
     enabled: monitor.enabled,
@@ -151,6 +155,18 @@ function enrichTodoDeployedEnvironments(
   return enrichDeployedEnvironments(environments, monitors, toDeployedEnvironmentDto);
 }
 
+export function toTestcaseScanDto(scan: TestcaseScan): TestcaseScanDto {
+  return {
+    id: scan.id,
+    todoId: scan.todoId,
+    name: scan.name,
+    status: scan.status as TestcaseScanStatus,
+    jobUrl: scan.jobUrl,
+    createdAt: scan.createdAt.toISOString(),
+    updatedAt: scan.updatedAt.toISOString(),
+  };
+}
+
 export function toSubtaskDto(
   subtask: Subtask & {
     monitor?: Monitor | null;
@@ -186,8 +202,13 @@ export function toTodoDto(
     pullRequests?: AssociatedPullRequest[];
     associatedTickets?: AssociatedTicket[];
     deployedEnvironments?: DeployedEnvironment[];
+    testcaseScans?: TestcaseScan[];
   },
 ): TodoDto {
+  const testcaseScanHistory = todo.testcaseScans
+    ?.map(toTestcaseScanDto)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
   return {
     id: todo.id,
     title: todo.title,
@@ -205,6 +226,7 @@ export function toTodoDto(
       todo.subtasks,
       todo.monitor,
     ),
+    testcaseScanHistory,
   };
 }
 

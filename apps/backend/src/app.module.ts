@@ -10,6 +10,7 @@ import { ReleasesModule } from './releases/releases.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EventsModule } from './events/events.module';
 import { HealthModule } from './health/health.module';
+import { TestcaseScansModule } from './testcase-scans/testcase-scans.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -36,6 +37,7 @@ import { validateEnv } from './config/env.validation';
     ReleasesModule,
     SchedulerModule,
     HealthModule,
+    TestcaseScansModule,
   ],
 })
 export class AppModule {}

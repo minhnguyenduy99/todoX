@@ -4,6 +4,7 @@ import { subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
 import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
+import { TestcaseScanList } from './TestcaseScanList';
 import { CopyableUuid } from './CopyableUuid';
 import { ServiceBadge } from './ServiceBadge';
 
@@ -17,6 +18,7 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
   const pullRequests = todo.pullRequests ?? [];
   const associatedTickets = todo.associatedTickets ?? [];
   const deployedEnvironments = todo.deployedEnvironments ?? [];
+  const testcaseScanHistory = todo.testcaseScanHistory ?? [];
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -83,6 +85,15 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
               />
             ) : (
               <p className="subtask-panel-empty-field">Not deployed yet</p>
+            )}
+          </section>
+
+          <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Testcase scans</h3>
+            {testcaseScanHistory.length > 0 ? (
+              <TestcaseScanList scans={testcaseScanHistory} layout="lines" />
+            ) : (
+              <p className="subtask-panel-empty-field">No testcase scans yet</p>
             )}
           </section>
 

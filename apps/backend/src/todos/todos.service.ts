@@ -6,6 +6,7 @@ import { MonitorsService } from '../monitors/monitors.service';
 import { syncPullRequests } from '../common/pull-requests';
 import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { syncAssociatedTickets } from '../common/sync-associated-tickets';
+import { syncTestcaseScans } from '../common/sync-testcase-scans';
 import {
   applyTodoServiceResolution,
   resolveTodoServiceInput,
@@ -28,6 +29,10 @@ const deployedEnvironmentInclude = {
   orderBy: { name: 'asc' as const },
 };
 
+const testcaseScanInclude = {
+  orderBy: { createdAt: 'desc' as const },
+};
+
 const subtaskInclude = {
   include: {
     monitor: true,
@@ -44,6 +49,7 @@ const todoInclude = {
   pullRequests: pullRequestInclude,
   associatedTickets: associatedTicketInclude,
   deployedEnvironments: deployedEnvironmentInclude,
+  testcaseScans: testcaseScanInclude,
 };
 
 @Injectable()
@@ -103,6 +109,7 @@ export class TodosService {
       pullRequests,
       deployedEnvironments,
       associatedTickets,
+      testcaseScanHistory,
       serviceId,
       serviceKeyName,
       ...todoData
@@ -128,6 +135,13 @@ export class TodosService {
 
     await syncPullRequests(this.prisma, { todoId: todo.id }, pullRequests);
     await syncAssociatedTickets(this.prisma, todo.id, associatedTickets);
+    await syncTestcaseScans(
+      this.prisma,
+      this.monitorsService,
+      todo.id,
+      testcaseScanHistory,
+      { silent: true },
+    );
     await syncDeployedEnvironments(this.prisma, { todoId: todo.id }, deployedEnvironments);
 
     const full = await this.prisma.todo.findUnique({
@@ -148,6 +162,7 @@ export class TodosService {
       pullRequests,
       deployedEnvironments,
       associatedTickets,
+      testcaseScanHistory,
       serviceId,
       serviceKeyName,
       ...todoData
@@ -195,6 +210,13 @@ export class TodosService {
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
     await syncAssociatedTickets(this.prisma, id, associatedTickets);
+    await syncTestcaseScans(
+      this.prisma,
+      this.monitorsService,
+      id,
+      testcaseScanHistory,
+      { silent: true },
+    );
     await syncDeployedEnvironments(this.prisma, { todoId: id }, deployedEnvironments);
 
     const todo = await this.prisma.todo.findUnique({
