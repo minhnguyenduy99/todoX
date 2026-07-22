@@ -9,23 +9,23 @@ Cursor / Claude Desktop / MCP Client
                 │
          MCP Protocol
                 │
-        Node.js MCP Server          (port 3001)
+        Node.js MCP Server          (host port 3001)
                 │
          REST / WebSocket API
                 │
-        Todo Backend Service        (port 3000)
+        Todo Backend Service        (host port 10003)
                 │
-           PostgreSQL               (port 5432)
+           PostgreSQL               (host port 10001)
                 │
         Background Scheduler
                 │
-              Redis                 (port 6379)
+              Redis                 (host port 10002)
                 │
       External Monitoring APIs
                 │
         WebSocket Notifications
                 │
-           React Dashboard          (port 5173)
+           React Dashboard          (host port 10005)
 ```
 
 The **MCP server contains no business logic** — it exposes tools that proxy to the backend REST API. All business logic lives in the NestJS backend.
@@ -45,13 +45,13 @@ The **MCP server contains no business logic** — it exposes tools that proxy to
 # Clone and start all services
 docker compose up --build
 
-# Services:
-# - Backend API:    http://localhost:3000
-# - Swagger docs:   http://localhost:3000/api
+# Services (host ports in the 10k range):
+# - PostgreSQL:     localhost:10001
+# - Redis:          localhost:10002
+# - Backend API:    http://localhost:10003
+# - Swagger docs:   http://localhost:10003/api
 # - MCP Server:     http://localhost:3001/mcp
-# - Web Dashboard:  http://localhost:5173
-# - PostgreSQL:     localhost:5432
-# - Redis:          localhost:6379
+# - Web Dashboard:  http://localhost:10005
 ```
 
 Migrations run automatically on backend startup.
@@ -98,11 +98,9 @@ npm run start:dev --workspace=@todo-platform/mcp-server
 
 Cursor reads MCP config from `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global).
 
-### Docker Compose (recommended)
+### Docker Compose (streamable HTTP)
 
-When you run `docker compose up`, the MCP server is already running on **HTTP port 3001**. You do **not** need a local `node` path or a built `dist/` folder.
-
-Use this config in `.cursor/mcp.json` or your global MCP settings:
+When you run `docker compose up`, the MCP server runs on **HTTP port 3001** (unchanged from before the 10k port migration for other services). Other infra uses the 10k host port range:
 
 ```json
 {
@@ -116,40 +114,14 @@ Use this config in `.cursor/mcp.json` or your global MCP settings:
 ```
 
 Requirements:
-1. `docker compose up` is running (backend on 3000, mcp-server on 3001)
-2. Toggle the server off and on in **Settings → Tools & MCP**, then open a **new Agent chat** (reload alone may not refresh tool schemas)
+1. `docker compose up` is running (mcp-server on **3001**, backend on 10003)
+2. Toggle the server off and on in **Settings → Tools & MCP**, then open a **new Agent chat**
 
 A ready-to-use project config is included at `.cursor/mcp.json`.
 
-### Local stdio (without Docker MCP container)
+### Cursor (stdio fallback)
 
-Use this if you run the backend via Docker but want Cursor to spawn the MCP process locally:
-
-```bash
-npm install
-npm run build --workspace=@todo-platform/shared-types
-npm run build --workspace=@todo-platform/shared-api
-npm run build --workspace=@todo-platform/mcp-server
-```
-
-```json
-{
-  "mcpServers": {
-    "todo-platform": {
-      "command": "node",
-      "args": ["${workspaceFolder}/apps/mcp-server/dist/index.js"],
-      "env": {
-        "BACKEND_URL": "http://localhost:3000",
-        "MCP_TRANSPORT": "stdio"
-      }
-    }
-  }
-}
-```
-
-`${workspaceFolder}` resolves to your project root automatically — do **not** use `/path/to/todo-platform/`.
-
-See `mcp-config.example.json` for both Docker and local examples.
+If streamable HTTP still fails in Cursor (known IDE bug on some versions), build the MCP server and use stdio with `BACKEND_URL=http://localhost:10003`. See `mcp-config.example.json` for examples.
 
 ## MCP Tools
 
@@ -246,7 +218,7 @@ OpenAPI documentation is available at `/api` when the backend is running.
 
 ## WebSocket Events
 
-Connect to `ws://localhost:3000/ws` for real-time updates:
+Connect to `ws://localhost:10003/ws` (or `ws://localhost:10005/ws` via the Docker web proxy) for real-time updates:
 
 - `todo.created`, `todo.updated`, `todo.deleted`
 - `subtask.created`, `subtask.updated`, `subtask.deleted`
@@ -335,8 +307,8 @@ todo-platform/
 npm test --workspace=@todo-platform/backend
 
 # Integration tests (requires running PostgreSQL + Redis)
-DATABASE_URL=postgresql://todo:todo@localhost:5432/todo_platform \
-REDIS_URL=redis://localhost:6379 \
+DATABASE_URL=postgresql://todo:todo@localhost:10001/todo_platform \
+REDIS_URL=redis://localhost:10002 \
 npm run test:integration --workspace=@todo-platform/backend
 ```
 
@@ -345,13 +317,13 @@ npm run test:integration --workspace=@todo-platform/backend
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | — | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
-| `PORT` | `3000` | Backend port |
+| `REDIS_URL` | `redis://localhost:10002` | Redis connection string |
+| `PORT` | `3000` | Backend port (container/internal) |
 | `GITHUB_TOKEN` | — | GitHub API token for PR monitors |
 | `JENKINS_AUTH` | — | Base64 `user:password` for Jenkins deployment monitors |
-| `BACKEND_URL` | `http://localhost:3000` | Backend URL for MCP server |
+| `BACKEND_URL` | `http://localhost:10003` | Backend URL for MCP server |
 | `MCP_TRANSPORT` | `stdio` | MCP transport (`stdio` or `http`) |
-| `MCP_PORT` | `3001` | MCP HTTP port |
+| `MCP_PORT` | `3001` | MCP HTTP port (host 3001 in Docker) |
 | `RUN_MIGRATIONS` | `false` | Run Prisma migrations on startup |
 
 ## Extending

@@ -4,7 +4,7 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().default('redis://localhost:6379'),
+  REDIS_URL: z.string().default('redis://localhost:10002'),
   CORS_ORIGIN: z.string().default('*'),
   GITHUB_TOKEN: z.string().optional(),
   JENKINS_AUTH: z.string().optional(),

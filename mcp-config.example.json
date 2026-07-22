@@ -1,14 +1,14 @@
 {
   "mcpServers": {
-    "todo-platform-docker": {
+    "todo-platform-docker-http": {
       "type": "streamableHttp",
       "url": "http://localhost:3001/mcp"
     },
-    "todo-platform-local": {
+    "todo-platform-local-stdio": {
       "command": "node",
       "args": ["${workspaceFolder}/apps/mcp-server/dist/index.js"],
       "env": {
-        "BACKEND_URL": "http://localhost:3000",
+        "BACKEND_URL": "http://localhost:10003",
         "MCP_TRANSPORT": "stdio"
       }
     }

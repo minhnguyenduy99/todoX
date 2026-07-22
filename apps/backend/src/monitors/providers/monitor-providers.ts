@@ -14,6 +14,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '../../config/env.validation';
+import { normalizeDeploymentMonitorConfig } from '../../common/parse-jenkins-job-url';
 
 @Injectable()
 export class HttpMonitorProvider implements MonitorProvider {
@@ -215,13 +216,15 @@ export class DeploymentMonitorProvider implements MonitorProvider {
   constructor(private readonly configService: ConfigService<EnvConfig, true>) {}
 
   async check(config: unknown): Promise<MonitorResult> {
-    const cfg = config as DeploymentMonitorConfig;
-    if (!cfg?.env || !cfg?.jobUrl || cfg.buildNumber === undefined || cfg.buildNumber === null) {
+    const raw = config as DeploymentMonitorConfig;
+    if (!raw?.env || !raw?.jobUrl || raw.buildNumber === undefined || raw.buildNumber === null) {
       return {
         status: MonitorResultStatus.FAILED,
         message: 'Missing env, jobUrl, or buildNumber in config',
       };
     }
+
+    const cfg = normalizeDeploymentMonitorConfig(raw);
 
     const auth = this.configService.get('JENKINS_AUTH', { infer: true });
     if (!auth) {

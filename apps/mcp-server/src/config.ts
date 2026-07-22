@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const mcpEnvSchema = z.object({
-  BACKEND_URL: z.string().url().default('http://localhost:3000'),
+  BACKEND_URL: z.string().url().default('http://localhost:10003'),
   MCP_TRANSPORT: z.enum(['stdio', 'http']).default('stdio'),
   MCP_PORT: z.coerce.number().default(3001),
 });

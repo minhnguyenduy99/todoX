@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: todo
+      POSTGRES_PASSWORD: todo
+      POSTGRES_DB: todo_platform
+    ports:
+      - '10001:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U todo -d todo_platform']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '10002:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    ports:
+      - '10003:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://todo:todo@postgres:5432/todo_platform
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: '*'
+      RUN_MIGRATIONS: 'true'
+      LOG_LEVEL: info
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      JENKINS_AUTH: ${JENKINS_AUTH:-}
+      JENKINS_SCAN_AUTH: ${JENKINS_SCAN_AUTH:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: apps/mcp-server/Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      BACKEND_URL: http://backend:3000
+      MCP_TRANSPORT: http
+      MCP_PORT: 3001
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '10005:5173'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

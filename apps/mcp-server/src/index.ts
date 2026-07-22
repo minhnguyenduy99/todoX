@@ -20,7 +20,9 @@ import {
   type UpdateSubtaskDto,
   type UpdateTodoDto,
 } from '@todo-platform/shared-types';
-import { createServer } from 'http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
+import { randomUUID } from 'node:crypto';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { validateMcpEnv } from './config.js';
 import {
   addAssociatedPullRequest,
@@ -689,7 +691,94 @@ async function startStdio(): Promise<void> {
   console.error('Todo MCP server running on stdio');
 }
 
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  if (chunks.length === 0) {
+    return undefined;
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function sendJsonRpcError(
+  res: ServerResponse,
+  status: number,
+  code: number,
+  message: string,
+): void {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }));
+}
+
 async function startHttp(): Promise<void> {
+  const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+  async function handleMcpPost(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const sessionId = req.headers['mcp-session-id'];
+    const body = await readJsonBody(req);
+
+    try {
+      let transport: StreamableHTTPServerTransport | undefined;
+
+      if (typeof sessionId === 'string' && transports[sessionId]) {
+        transport = transports[sessionId];
+      } else if (!sessionId && isInitializeRequest(body)) {
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: true,
+          onsessioninitialized: (newSessionId) => {
+            transports[newSessionId] = transport!;
+          },
+        });
+        transport.onclose = () => {
+          const sid = transport?.sessionId;
+          if (sid && transports[sid]) {
+            delete transports[sid];
+          }
+        };
+        const server = createMcpServer();
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
+        return;
+      } else {
+        sendJsonRpcError(res, 400, -32000, 'Bad Request: No valid session ID provided');
+        return;
+      }
+
+      await transport.handleRequest(req, res, body);
+    } catch (error) {
+      console.error('Error handling MCP POST request:', error);
+      if (!res.headersSent) {
+        sendJsonRpcError(res, 500, -32603, 'Internal server error');
+      }
+    }
+  }
+
+  async function handleMcpGet(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // JSON-response mode: no standalone SSE stream (Cursor/SDK probe GET before session exists).
+    res.writeHead(405, { Allow: 'POST, DELETE' });
+    res.end('Method Not Allowed');
+  }
+
+  async function handleMcpDelete(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const sessionId = req.headers['mcp-session-id'];
+    if (typeof sessionId !== 'string' || !transports[sessionId]) {
+      res.writeHead(400).end('Invalid or missing session ID');
+      return;
+    }
+
+    try {
+      await transports[sessionId].handleRequest(req, res);
+    } catch (error) {
+      console.error('Error handling MCP DELETE request:', error);
+      if (!res.headersSent) {
+        res.writeHead(500).end('Error processing session termination');
+      }
+    }
+  }
+
   const httpServer = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${env.MCP_PORT}`);
 
@@ -700,33 +789,20 @@ async function startHttp(): Promise<void> {
     }
 
     if (url.pathname === '/mcp') {
-      const server = createMcpServer();
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true,
-      });
-
-      try {
-        await server.connect(transport);
-        await transport.handleRequest(req, res);
-
-        res.on('close', () => {
-          void transport.close();
-          void server.close();
-        });
-      } catch (error) {
-        console.error('Error handling MCP request:', error);
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              error: { code: -32603, message: 'Internal server error' },
-              id: null,
-            }),
-          );
-        }
+      console.error(`MCP ${req.method} ${url.pathname} session=${req.headers['mcp-session-id'] ?? '-'}`);
+      if (req.method === 'POST') {
+        await handleMcpPost(req, res);
+        return;
       }
+      if (req.method === 'GET') {
+        await handleMcpGet(req, res);
+        return;
+      }
+      if (req.method === 'DELETE') {
+        await handleMcpDelete(req, res);
+        return;
+      }
+      sendJsonRpcError(res, 405, -32000, 'Method not allowed');
       return;
     }
 
@@ -734,8 +810,8 @@ async function startHttp(): Promise<void> {
     res.end('Not found');
   });
 
-  httpServer.listen(env.MCP_PORT, () => {
-    console.error(`Todo MCP server running on http://localhost:${env.MCP_PORT}/mcp`);
+  httpServer.listen(env.MCP_PORT, '0.0.0.0', () => {
+    console.error(`Todo MCP server running on http://0.0.0.0:${env.MCP_PORT}/mcp`);
   });
 }
 

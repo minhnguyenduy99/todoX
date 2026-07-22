@@ -3,8 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { toMonitorDto } from '../common/mappers';
-import type { CreateMonitorDto, MonitorDto, UpdateMonitorDto } from '@todo-platform/shared-types';
+import type {
+  CreateMonitorDto,
+  DeploymentMonitorConfig,
+  MonitorDto,
+  UpdateMonitorDto,
+} from '@todo-platform/shared-types';
 import { MonitorType } from '@todo-platform/shared-types';
+import { normalizeDeploymentMonitorConfig } from '../common/parse-jenkins-job-url';
 import type { Prisma } from '@prisma/client';
 import parser from 'cron-parser';
 
@@ -81,7 +87,7 @@ export class MonitorsService {
         type: dto.type,
         cron: dto.cron,
         enabled: dto.enabled ?? true,
-        config: dto.config as Prisma.InputJsonValue,
+        config: this.normalizeMonitorConfig(dto.type, dto.config) as Prisma.InputJsonValue,
         nextRunAt,
       },
     });
@@ -157,13 +163,16 @@ export class MonitorsService {
     const cron = dto.cron ?? existing.cron;
     const enabled = dto.enabled ?? existing.enabled;
 
+    const type = (dto.type ?? existing.type) as MonitorType;
     const monitor = await this.prisma.monitor.update({
       where: { id },
       data: {
         type: dto.type,
         cron: dto.cron,
         enabled: dto.enabled,
-        config: dto.config as Prisma.InputJsonValue | undefined,
+        config: dto.config
+          ? (this.normalizeMonitorConfig(type, dto.config) as Prisma.InputJsonValue)
+          : undefined,
         nextRunAt: enabled ? this.computeNextRun(cron) : null,
       },
     });
@@ -187,6 +196,18 @@ export class MonitorsService {
     await this.scheduler.unscheduleMonitor(id);
     await this.prisma.monitor.delete({ where: { id } });
     this.events.broadcast('monitor.deleted', { id });
+  }
+
+  private normalizeMonitorConfig(
+    type: MonitorType,
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (type !== MonitorType.DEPLOYMENT) {
+      return config;
+    }
+    return normalizeDeploymentMonitorConfig(
+      config as unknown as DeploymentMonitorConfig,
+    ) as unknown as Record<string, unknown>;
   }
 
   private validateCron(cron: string): void {

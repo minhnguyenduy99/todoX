@@ -17,12 +17,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL ?? 'http://localhost:3000',
+        target: process.env.VITE_API_URL ?? 'http://localhost:10003',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/ws': {
-        target: process.env.VITE_WS_URL ?? 'ws://localhost:3000',
+        target: process.env.VITE_WS_URL ?? 'ws://localhost:10003',
         ws: true,
       },
     },

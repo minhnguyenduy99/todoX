@@ -207,6 +207,31 @@ describe('DeploymentMonitorProvider', () => {
     expect(result.message).toContain('404');
   });
 
+  it('normalizes a full build URL in jobUrl before calling Jenkins', async () => {
+    const provider = createProvider('dG9rZW4=');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        building: true,
+        result: null,
+        duration: 0,
+        timestamp: 1784521296700,
+        url: 'https://jenkins.example.net/job/my-job/2790/',
+      }),
+    } as Response);
+
+    await provider.check({
+      env: DeployedEnvironmentName.DEV,
+      jobUrl: 'https://jenkins.example.net/job/my-job/2790/',
+      buildNumber: 2790,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://jenkins.example.net/job/my-job/2790/api/json?tree=building,result,duration,timestamp,url',
+      expect.any(Object),
+    );
+  });
+
   it('returns failed on network error', async () => {
     const provider = createProvider('dG9rZW4=');
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network down'));
