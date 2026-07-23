@@ -6,12 +6,22 @@
 |------|---------|
 | `list_services` | Validate service `keyName` values |
 | `get_service` | Read `deployments[]` catalog (`environment`, `jobUrl`) |
-| `list_todos` | Find `IN_PROGRESS` todos filtered by `serviceKeyName` |
+| `list_todos` | Find todos by status + `serviceKeyName` |
 | `update_todo` | Refresh PR status; attach deployment monitor |
 | `add_associated_pull_request` | Alternative for single PR status refresh |
 | `add_deployed_environment` | Record env chip on todo |
 
 Call `GetMcpTools` with server `todo-platform` before invoking tools.
+
+## Environment-specific todo filters
+
+| `environment` | `list_todos.status` | PR gate |
+|---------------|---------------------|---------|
+| `dev` | `IN_PROGRESS` | dev-based (`baseRefName === "dev"`) |
+| `uat` | `IN_PROGRESS` | none |
+| `uat-main` | `TESTING` | main-based (`baseRefName === "main"`) |
+
+Wire values: `TodoStatus.IN_PROGRESS` → `"IN_PROGRESS"`, `TodoStatus.TESTING` → `"TESTING"`.
 
 ## Service deployment catalog
 
@@ -27,12 +37,17 @@ Each `ServiceDto` may include:
       "id": "…",
       "environment": "dev",
       "jobUrl": "https://jenkins.example.net/job/billing-api.dev.deploy"
+    },
+    {
+      "id": "…",
+      "environment": "uat-main",
+      "jobUrl": "https://jenkins.example.net/job/billing-api.uat-main.deploy"
     }
   ]
 }
 ```
 
-Match `environment` to the skill input (`dev` or `uat`). Use `jobUrl` as the Jenkins job base (same normalization as TodoX backend: trim trailing slash, strip trailing `/\d+` build segment if present).
+Match `environment` to the skill input (`dev`, `uat`, or `uat-main`). Use `jobUrl` as the Jenkins job base (same normalization as TodoX backend: trim trailing slash, strip trailing `/\d+` build segment if present).
 
 ## Jenkins: trigger build
 
@@ -92,7 +107,7 @@ GET {jobUrl}/{buildNumber}/api/json?tree=building,result,duration,timestamp,url
 Authorization: Basic ${JENKINS_AUTH}
 ```
 
-## GitHub: dev PR merge gate
+## GitHub: PR merge gates
 
 Parse PR URLs like `https://github.com/my-org/my-repo/pull/123`:
 
@@ -107,9 +122,13 @@ gh pr view 123 --repo my-org/my-repo \
   --json merged,state,baseRefName,title,url
 ```
 
-**Dev-based PR:** `baseRefName == "dev"`.
+| Flow | PR filter | Gate |
+|------|-----------|------|
+| `dev` | `baseRefName == "dev"` | all such PRs on affected todos must have `"merged": true` |
+| `uat-main` | `baseRefName == "main"` | all such PRs on affected todos must have `"merged": true` |
+| `uat` | — | no PR gate |
 
-**Gate:** every dev-based PR on affected todos must have `"merged": true`. Otherwise stop and list open PRs.
+If any gated PR has `merged: false`, stop and list open PRs (number, title, URL).
 
 **Update TodoX PR status** after verification:
 
@@ -136,8 +155,8 @@ From TodoX README and MCP `deploymentMonitorConfigDescription`:
   "type": "deployment",
   "cron": "*/1 * * * *",
   "config": {
-    "env": "dev",
-    "jobUrl": "https://jenkins.example.net/job/my-service.dev.deploy",
+    "env": "uat-main",
+    "jobUrl": "https://jenkins.example.net/job/my-service.uat-main.deploy",
     "buildNumber": 2790
   }
 }
@@ -147,7 +166,9 @@ Allowed `env` values on todos: `dev`, `uat`, `uat-main`, `staging`.
 
 Backend scheduler uses standard 5-field cron (`cron-parser`); the skill's **30-second** interval applies only while the agent polls Jenkins for new build numbers after trigger.
 
-## list_todos filters
+## list_todos examples
+
+**dev / uat:**
 
 ```json
 {
@@ -156,4 +177,11 @@ Backend scheduler uses standard 5-field cron (`cron-parser`); the skill's **30-s
 }
 ```
 
-`TodoStatus.IN_PROGRESS` wire value: `"IN_PROGRESS"`.
+**uat-main:**
+
+```json
+{
+  "status": "TESTING",
+  "serviceKeyName": "billing-api"
+}
+```

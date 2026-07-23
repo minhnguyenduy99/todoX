@@ -1,35 +1,36 @@
 ---
 name: todox-deploy
 description: >-
-  Deploy TodoX catalog services to dev or uat via Jenkins, validate services,
-  gate on merged dev PRs, and attach deployment monitors to in-progress todos.
-  Use when the user asks to deploy services to dev/uat, run todox-deploy, or
-  trigger Jenkins deploys for TodoX todos.
-argument-hint: "[environment: dev|uat] [service-key-names...]"
+  Deploy TodoX catalog services to dev, uat, or uat-main via Jenkins, validate
+  services, gate on merged dev/main PRs, and attach deployment monitors to
+  matching todos. Use when the user asks to deploy services to dev/uat/uat-main,
+  run todox-deploy, or trigger Jenkins deploys for TodoX todos.
+argument-hint: "[environment: dev|uat|uat-main] [service-key-names...]"
 disable-model-invocation: true
 ---
 
 # TodoX Deploy
 
-Deploy one or more catalog services to **dev** or **uat**, then update matching **in-progress** todos with deployed-environment chips and Jenkins deployment monitors.
+Deploy one or more catalog services to **dev**, **uat**, or **uat-main**, then update matching todos with deployed-environment chips and Jenkins deployment monitors.
 
 ## Arguments
 
 | Argument | Required | Values |
 |----------|----------|--------|
-| `environment` | yes | `dev` or `uat` |
+| `environment` | yes | `dev`, `uat`, or `uat-main` |
 | `services` | yes | One or more service `keyName` slugs (e.g. `billing-api`, `auth`) |
 
 Example invocations:
 
 - `/todox-deploy dev billing-api auth`
-- Deploy `flo-api` to UAT: environment `uat`, services `["flo-api"]`
+- `/todox-deploy uat flo-api`
+- `/todox-deploy uat-main billing-api`
 
 ## Prerequisites
 
 1. **TodoX MCP** (`todo-platform`) is connected — see `.cursor/mcp.json` and README MCP section.
 2. **`JENKINS_AUTH`** is set in the environment (base64 `user:password`, same as TodoX backend deployment monitors).
-3. **`gh` CLI** is authenticated for PR merge checks (dev flow only).
+3. **`gh` CLI** is authenticated for PR merge checks (**dev** and **uat-main** flows).
 4. Each target service has a **catalog deployment** row for the requested environment (`service.deployments[]` with matching `environment` and `jobUrl`). Configure these on the TodoX Services page when available.
 
 Discover MCP tools with `GetMcpTools` for server `todo-platform` before calling them.
@@ -59,16 +60,24 @@ Do **not** trigger Jenkins yet — deployment happens in step 4 after todo/PR ga
 
 ### 3. Identify todos and apply environment gates
 
+Per-environment todo selection:
+
+| `environment` | `list_todos` status | PR merge gate |
+|-----------------|---------------------|---------------|
+| `dev` | `IN_PROGRESS` | dev-based PRs (`baseRefName === "dev"`) |
+| `uat` | `IN_PROGRESS` | none |
+| `uat-main` | `TESTING` | main-based PRs (`baseRefName === "main"`) |
+
 For **each** input service, call MCP `list_todos` with:
 
-- `status`: `IN_PROGRESS`
+- `status`: from the table above
 - `serviceKeyName`: the service `keyName`
 
 Collect the union of matching todos (dedupe by todo `id`). Keep a map of which services each todo belongs to via its `service.keyName`.
 
 #### 3.1 When `environment` is `dev`
 
-**3.1.1** — Todos are already listed above per service.
+**3.1.1** — Todos are already listed above (`IN_PROGRESS`).
 
 **3.1.2** — For every associated pull request on those todos (`todo.pullRequests[]`), treat a PR as **dev-based** when GitHub reports `baseRefName === "dev"`.
 
@@ -86,7 +95,20 @@ gh pr view <number> --repo <owner>/<repo> --json merged,state,baseRefName,title,
 
 #### 3.2 When `environment` is `uat`
 
-**3.2.1** — Todos are already listed above per service. No PR merge gate for UAT in this skill.
+**3.2.1** — Todos are already listed above (`IN_PROGRESS`). No PR merge gate for UAT in this skill.
+
+#### 3.3 When `environment` is `uat-main`
+
+**3.3.1** — Todos are already listed above (`TESTING`).
+
+**3.3.2** — Same flow as **dev** (step 3.1.2), but treat a PR as **main-based** when GitHub reports `baseRefName === "main"`.
+
+For each main-based PR:
+
+1. Parse `owner`, `repo`, and PR number from `pullRequest.url`.
+2. Verify merge state via `gh` (same command as dev).
+3. **If any main-based PR has `merged: false`:** stop and tell the user to merge those PRs first.
+4. **When all main-based PRs for the affected todos are merged:** refresh stored PR status on each todo via MCP `update_todo` (or `add_associated_pull_request` per PR).
 
 ### 4. Deploy services and update todos
 
@@ -141,8 +163,8 @@ When finished, summarize:
 
 - Environment and services deployed
 - Jenkins build number and build URL per service
-- Todos updated (id, title, service)
-- Dev PRs verified merged (dev only)
+- Todos updated (id, title, service, status filter used)
+- PRs verified merged (dev or uat-main only)
 - Any todos skipped and why
 
 ## Stop conditions (fail closed)
@@ -152,6 +174,7 @@ When finished, summarize:
 | Unknown service `keyName` | Stop at step 1 |
 | Missing catalog `jobUrl` for environment | Stop at step 2 |
 | Dev PR with `baseRefName=dev` not merged | Stop at step 3.1.2 |
+| Main PR with `baseRefName=main` not merged | Stop at step 3.3.2 |
 | Jenkins trigger or build resolution failure | Stop at step 4.1 |
 | MCP / `gh` / Jenkins auth errors | Stop and report the failing command |
 
@@ -163,7 +186,7 @@ When finished, summarize:
 /todox-deploy dev billing-api auth
 ```
 
-Expected: validate → resolve job URLs → list IN_PROGRESS todos → verify dev-base PRs via `gh` → trigger Jenkins → attach `dev` env chips + deployment monitors.
+Expected: validate → resolve job URLs → list `IN_PROGRESS` todos → verify dev-base PRs via `gh` → trigger Jenkins → attach `dev` env chips + deployment monitors.
 
 **Deploy one service to uat**
 
@@ -171,4 +194,12 @@ Expected: validate → resolve job URLs → list IN_PROGRESS todos → verify de
 /todox-deploy uat flo-api
 ```
 
-Expected: validate → resolve job URL → list IN_PROGRESS todos for `flo-api` → trigger Jenkins → attach monitors (no PR gate).
+Expected: validate → resolve job URL → list `IN_PROGRESS` todos for `flo-api` → trigger Jenkins → attach monitors (no PR gate).
+
+**Deploy to uat-main after main PRs are merged**
+
+```
+/todox-deploy uat-main billing-api
+```
+
+Expected: validate → resolve job URLs → list `TESTING` todos → verify main-base PRs via `gh` → trigger Jenkins → attach `uat-main` env chips + deployment monitors.
