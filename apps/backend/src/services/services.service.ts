@@ -18,12 +18,20 @@ export class ServicesService {
   async findAll(): Promise<ServiceDto[]> {
     const services = await this.prisma.service.findMany({
       orderBy: { keyName: 'asc' },
+      include: {
+        deployments: { orderBy: { environment: 'asc' } },
+      },
     });
     return services.map(toServiceDto);
   }
 
   async findOne(id: string): Promise<ServiceDto> {
-    const service = await this.prisma.service.findUnique({ where: { id } });
+    const service = await this.prisma.service.findUnique({
+      where: { id },
+      include: {
+        deployments: { orderBy: { environment: 'asc' } },
+      },
+    });
     if (!service) throw new NotFoundException(`Service ${id} not found`);
     return toServiceDto(service);
   }
@@ -41,6 +49,9 @@ export class ServicesService {
         keyName: dto.keyName,
         displayName: dto.displayName,
       },
+      include: {
+        deployments: { orderBy: { environment: 'asc' } },
+      },
     });
     return toServiceDto(service);
   }
@@ -52,6 +63,9 @@ export class ServicesService {
       where: { id },
       data: {
         displayName: dto.displayName,
+      },
+      include: {
+        deployments: { orderBy: { environment: 'asc' } },
       },
     });
     return toServiceDto(service);

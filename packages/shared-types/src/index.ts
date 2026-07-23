@@ -144,10 +144,50 @@ export interface TestcaseScanInput {
   jobUrl?: string | null;
 }
 
+export type ServiceDeploymentEnvironment = DeployedEnvironmentName | 'prod';
+
+export interface ServiceDeploymentLastBuildPreviewDto {
+  buildNumber: number;
+  status: DeploymentStatus;
+  buildUrl?: string;
+  durationMs: number | null;
+  timestamp?: number;
+}
+
+export interface ServiceDeploymentValidationPreviewDto {
+  jobName: string;
+  normalizedJobUrl: string;
+  lastBuild?: ServiceDeploymentLastBuildPreviewDto | null;
+}
+
+export interface ServiceDeploymentDto {
+  id: string;
+  serviceId: string;
+  environment: ServiceDeploymentEnvironment;
+  jobUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceDeploymentWriteResponseDto {
+  deployment: ServiceDeploymentDto;
+  validation: ServiceDeploymentValidationPreviewDto;
+}
+
+export interface CreateServiceDeploymentDto {
+  environment: ServiceDeploymentEnvironment;
+  jobUrl: string;
+}
+
+export interface UpdateServiceDeploymentDto {
+  jobUrl: string;
+}
+
 export interface ServiceDto {
   id: string;
   keyName: string;
   displayName: string;
+  deployments: ServiceDeploymentDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -165,6 +205,7 @@ export interface TodoDto {
   id: string;
   title: string;
   description: string | null;
+  changelog: string | null;
   status: TodoStatus;
   createdAt: string;
   updatedAt: string;
@@ -209,6 +250,7 @@ export interface MonitorDto {
 export interface CreateTodoDto {
   title: string;
   description?: string;
+  changelog?: string;
   status?: TodoStatus;
   serviceId?: string | null;
   serviceKeyName?: string | null;
@@ -222,6 +264,7 @@ export interface CreateTodoDto {
 export interface UpdateTodoDto {
   title?: string;
   description?: string;
+  changelog?: string;
   status?: TodoStatus;
   serviceId?: string | null;
   serviceKeyName?: string | null;

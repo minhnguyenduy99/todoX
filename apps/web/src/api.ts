@@ -3,8 +3,12 @@ import {
   SubtaskStatus,
   MonitorResultStatus,
   ReleaseStatus,
+  type CreateServiceDeploymentDto,
   type ReleaseDto,
+  type ServiceDeploymentWriteResponseDto,
+  type ServiceDto,
   type TodoDto,
+  type UpdateServiceDeploymentDto,
   type WebSocketEvent,
 } from '@todo-platform/shared-types';
 
@@ -20,6 +24,58 @@ export async function fetchReleases(): Promise<ReleaseDto[]> {
   const res = await fetch(`${API_BASE}/releases`);
   if (!res.ok) throw new Error(`Failed to fetch releases: ${res.status}`);
   return res.json();
+}
+
+export async function fetchServices(): Promise<ServiceDto[]> {
+  const res = await fetch(`${API_BASE}/services`);
+  if (!res.ok) throw new Error(`Failed to fetch services: ${res.status}`);
+  return res.json();
+}
+
+export async function createServiceDeployment(
+  serviceId: string,
+  data: CreateServiceDeploymentDto,
+): Promise<ServiceDeploymentWriteResponseDto> {
+  const res = await fetch(`${API_BASE}/services/${serviceId}/deployments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || `Failed to create deployment: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateServiceDeployment(
+  serviceId: string,
+  deploymentId: string,
+  data: UpdateServiceDeploymentDto,
+): Promise<ServiceDeploymentWriteResponseDto> {
+  const res = await fetch(`${API_BASE}/services/${serviceId}/deployments/${deploymentId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || `Failed to update deployment: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteServiceDeployment(
+  serviceId: string,
+  deploymentId: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/services/${serviceId}/deployments/${deploymentId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || `Failed to delete deployment: ${res.status}`);
+  }
 }
 
 export function getWsUrl(): string {
@@ -100,4 +156,4 @@ export function formatDate(date: string | null | undefined): string {
   return new Date(date).toLocaleString();
 }
 
-export type { WebSocketEvent, TodoDto, ReleaseDto };
+export type { WebSocketEvent, TodoDto, ReleaseDto, ServiceDto };

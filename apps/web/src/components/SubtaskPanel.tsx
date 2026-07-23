@@ -109,6 +109,17 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
           </section>
 
           <section className="subtask-panel-field">
+            <h3 className="subtask-panel-label">Changelog</h3>
+            {todo.changelog ? (
+              <div className="subtask-panel-description-content">
+                <p className="subtask-panel-description">{todo.changelog}</p>
+              </div>
+            ) : (
+              <p className="subtask-panel-empty-field">No changelog</p>
+            )}
+          </section>
+
+          <section className="subtask-panel-field">
             <h3 className="subtask-panel-label">Subtasks</h3>
             {subtasks.length === 0 ? (
               <p className="subtask-panel-empty-field">No subtasks for this todo.</p>
@@ -118,7 +129,6 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
                   <li key={subtask.id} className="subtask-item">
                     <div className="subtask-item-content">
                       <span className="subtask-name">{subtask.name}</span>
-                      <PullRequestList pullRequests={subtask.pullRequests ?? []} />
                       <DeployedEnvironmentList
                         deployedEnvironments={subtask.deployedEnvironments ?? []}
                       />

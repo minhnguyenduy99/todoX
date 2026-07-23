@@ -75,6 +75,11 @@ export class CreateTodoBody {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  changelog?: string;
+
   @ApiPropertyOptional({ enum: TodoStatus })
   @IsOptional()
   @IsEnum(TodoStatus)
@@ -135,6 +140,11 @@ export class UpdateTodoBody {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  changelog?: string;
 
   @ApiPropertyOptional({ enum: TodoStatus })
   @IsOptional()

@@ -38,7 +38,8 @@ export const createReleaseSchema = {
     },
     content: {
       type: 'string',
-      description: 'Agent-authored release notes / changelog content',
+      description:
+        'Optional release preamble; service-grouped todo changelogs are appended automatically',
     },
     todoIds: {
       type: 'array',

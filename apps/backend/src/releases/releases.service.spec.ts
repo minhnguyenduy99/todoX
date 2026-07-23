@@ -58,6 +58,7 @@ describe('ReleasesService', () => {
     id: 'todo-a',
     title: 'Todo A',
     description: null,
+    changelog: null,
     status: 'WAIT_FOR_STAGING',
     serviceId: 'svc-a',
     createdAt: new Date('2026-01-01'),
@@ -161,6 +162,48 @@ describe('ReleasesService', () => {
     expect(events.broadcast).toHaveBeenCalledWith('release.created', expect.any(Object));
   });
 
+  it('merges todo changelogs into release content on create', async () => {
+    const todoWithChangelog = {
+      ...todoA,
+      changelog: 'Fixed rounding on refunds.',
+    };
+    prisma.todo.findMany
+      .mockResolvedValueOnce([todoWithChangelog])
+      .mockResolvedValueOnce([todoWithChangelog]);
+    prisma.release.create.mockResolvedValue({ id: 'rel-1' });
+    prisma.release.findUniqueOrThrow.mockResolvedValue({
+      ...baseRelease,
+      members: [{ todoId: 'todo-a', todo: todoWithChangelog }],
+      content: 'March staging cut\n\n## Changelog by service\n\n### Service A\n- **Todo A** — Fixed rounding on refunds.',
+    });
+    prisma.release.findUnique.mockResolvedValue({
+      ...baseRelease,
+      members: [{ todoId: 'todo-a', todo: todoWithChangelog }],
+    });
+
+    await service.create({
+      type: ReleaseType.STAGING,
+      releaseDate: '2026-07-20',
+      content: 'March staging cut',
+      todoIds: ['todo-a'],
+    });
+
+    expect(prisma.release.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: expect.stringContaining('## Changelog by service'),
+        }),
+      }),
+    );
+    expect(prisma.release.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: expect.stringContaining('Fixed rounding on refunds.'),
+        }),
+      }),
+    );
+  });
+
   it('rejects empty todoIds', async () => {
     await expect(
       service.create({
@@ -241,6 +284,11 @@ describe('ReleasesService', () => {
       .mockResolvedValueOnce([todoC])
       .mockResolvedValueOnce([todoC]);
     prisma.release.findUniqueOrThrow.mockResolvedValue(withC);
+    prisma.releaseMember.findMany.mockResolvedValue([
+      { todo: todoA },
+      { todo: todoB },
+      { todo: todoC },
+    ]);
 
     const result = await service.update('rel-1', { todoIdsToAdd: ['todo-c'] });
     expect(result.members).toHaveLength(3);
@@ -269,6 +317,7 @@ describe('ReleasesService', () => {
       .mockResolvedValueOnce(baseRelease);
     prisma.release.findUniqueOrThrow.mockResolvedValue(afterRemove);
     prisma.todo.findMany.mockResolvedValue([todoB]);
+    prisma.releaseMember.findMany.mockResolvedValue([{ todo: todoA }]);
 
     await service.update('rel-1', { todoIdsToRemove: ['todo-b'] });
     expect(prisma.releaseMember.deleteMany).toHaveBeenCalled();

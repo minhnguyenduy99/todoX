@@ -37,6 +37,7 @@ describe('Services API (integration)', () => {
 
   beforeEach(async () => {
     await prisma.monitor.deleteMany();
+    await prisma.serviceDeployment.deleteMany();
     await prisma.subtask.deleteMany();
     await prisma.todo.deleteMany();
     await prisma.service.deleteMany();
@@ -51,6 +52,7 @@ describe('Services API (integration)', () => {
     expect(response.body).toMatchObject({
       keyName: 'billing-api',
       displayName: 'billing-api',
+      deployments: [],
     });
     expect(response.body.id).toBeDefined();
   });

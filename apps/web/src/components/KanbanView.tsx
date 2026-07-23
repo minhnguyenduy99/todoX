@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { TodoDto } from '@todo-platform/shared-types';
 import { TodoCard } from './TodoCard';
 import { SubtaskPanel } from './SubtaskPanel';
+import { COMPACT_TODO_CARD_PROPS } from './compactTodoCardProps';
 import {
   groupTodosByStatus,
   todoStatusClassName,
@@ -34,13 +35,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                   <TodoCard
                     key={todo.id}
                     todo={todo}
-                    compact
-                    compactUuid
-                    showSubtasks={false}
-                    showSubtaskCount
-                    showStatus={false}
-                    showDescription={false}
-                    showAssociatedTickets={false}
+                    {...COMPACT_TODO_CARD_PROPS}
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

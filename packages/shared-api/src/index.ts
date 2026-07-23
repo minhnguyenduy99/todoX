@@ -2,12 +2,14 @@ import type {
   CreateMonitorDto,
   CreateReleaseDto,
   CreateServiceDto,
+  CreateServiceDeploymentDto,
   CreateSubtaskDto,
   CreateTodoDto,
   HealthResponse,
   ListTodosParams,
   MonitorDto,
   ReleaseDto,
+  ServiceDeploymentWriteResponseDto,
   ServiceDto,
   SubtaskDto,
   TestcaseScanDto,
@@ -16,6 +18,7 @@ import type {
   UpdateMonitorDto,
   UpdateReleaseDto,
   UpdateServiceDto,
+  UpdateServiceDeploymentDto,
   UpdateSubtaskDto,
   UpdateTodoDto,
 } from '@todo-platform/shared-types';
@@ -116,6 +119,36 @@ export class TodoApiClient {
 
   deleteService(id: string): Promise<void> {
     return this.request<void>('DELETE', `/services/${id}`);
+  }
+
+  createServiceDeployment(
+    serviceId: string,
+    data: CreateServiceDeploymentDto,
+  ): Promise<ServiceDeploymentWriteResponseDto> {
+    return this.request<ServiceDeploymentWriteResponseDto>(
+      'POST',
+      `/services/${serviceId}/deployments`,
+      data,
+    );
+  }
+
+  updateServiceDeployment(
+    serviceId: string,
+    deploymentId: string,
+    data: UpdateServiceDeploymentDto,
+  ): Promise<ServiceDeploymentWriteResponseDto> {
+    return this.request<ServiceDeploymentWriteResponseDto>(
+      'PATCH',
+      `/services/${serviceId}/deployments/${deploymentId}`,
+      data,
+    );
+  }
+
+  deleteServiceDeployment(serviceId: string, deploymentId: string): Promise<void> {
+    return this.request<void>(
+      'DELETE',
+      `/services/${serviceId}/deployments/${deploymentId}`,
+    );
   }
 
   // Releases

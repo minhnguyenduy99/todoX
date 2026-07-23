@@ -8,6 +8,7 @@ import {
   ReleaseDeploymentStatus,
   ReleaseStatus,
   ReleaseType,
+  type ServiceDeploymentEnvironment,
   type AssociatedPullRequestDto,
   type AssociatedTicketDto,
   type DeployedEnvironmentDto,
@@ -16,6 +17,7 @@ import {
   type ReleaseDeploymentDto,
   type ReleaseDto,
   type ReleaseMemberSummaryDto,
+  type ServiceDeploymentDto,
   type ServiceDto,
   type SubtaskDto,
   type TestcaseScanDto,
@@ -31,6 +33,7 @@ import type {
   Release,
   ReleaseDeployment,
   Service,
+  ServiceDeployment,
   Subtask,
   TestcaseScan,
   Todo,
@@ -102,11 +105,27 @@ export function toAssociatedTicketDto(
   };
 }
 
-export function toServiceDto(service: Service): ServiceDto {
+export function toServiceDeploymentDto(
+  deployment: ServiceDeployment,
+): ServiceDeploymentDto {
+  return {
+    id: deployment.id,
+    serviceId: deployment.serviceId,
+    environment: deployment.environment as ServiceDeploymentEnvironment,
+    jobUrl: deployment.jobUrl,
+    createdAt: deployment.createdAt.toISOString(),
+    updatedAt: deployment.updatedAt.toISOString(),
+  };
+}
+
+type ServiceWithDeployments = Service & { deployments?: ServiceDeployment[] };
+
+export function toServiceDto(service: ServiceWithDeployments): ServiceDto {
   return {
     id: service.id,
     keyName: service.keyName,
     displayName: service.displayName ?? service.keyName,
+    deployments: (service.deployments ?? []).map(toServiceDeploymentDto),
     createdAt: service.createdAt.toISOString(),
     updatedAt: service.updatedAt.toISOString(),
   };
@@ -213,6 +232,7 @@ export function toTodoDto(
     id: todo.id,
     title: todo.title,
     description: todo.description,
+    changelog: todo.changelog,
     status: todo.status as TodoStatus,
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),

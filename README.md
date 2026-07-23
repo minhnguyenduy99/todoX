@@ -150,6 +150,8 @@ If streamable HTTP still fails in Cursor (known IDE bug on some versions), build
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
 
+`create_todo` and `update_todo` also accept optional `changelog` (release-note text for the todo). When creating or updating a draft release, the backend appends a service-grouped changelog section built from member todo changelogs.
+
 `create_todo` and `update_todo` also accept optional `associatedTickets` (full list) or `associatedTicket` (singular, appends one). Use `add_associated_ticket` when you only need to link a ticket on an existing todo. For Jira links, the MCP tool descriptions require using the Jira issue title as `title`.
 
 `create_todo` and `update_todo` also accept optional `serviceId` and/or `serviceKeyName` to assign a predefined service to the todo. Prefer `serviceKeyName` for agents. Pass `null` on either field to clear the association.
@@ -174,7 +176,12 @@ POST   /services
 GET    /services/:id
 PATCH  /services/:id
 DELETE /services/:id
+POST   /services/:id/deployments
+PATCH  /services/:serviceId/deployments/:deploymentId
+DELETE /services/:serviceId/deployments/:deploymentId
 ```
+
+Service responses include a nested `deployments` array (`environment`, `jobUrl`). Creating or updating a deployment validates the Jenkins job URL using `JENKINS_AUTH` before persisting and returns a validation preview (`jobName`, optional `lastBuild`).
 
 Todo `POST` / `PATCH` bodies accept optional `serviceId` and/or `serviceKeyName` to assign a catalog service.
 

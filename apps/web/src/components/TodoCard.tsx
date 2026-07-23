@@ -16,6 +16,7 @@ interface TodoCardProps {
   showStatus?: boolean;
   showDescription?: boolean;
   showAssociatedTickets?: boolean;
+  showPullRequests?: boolean;
   onClick?: () => void;
 }
 
@@ -28,6 +29,7 @@ export function TodoCard({
   showStatus = true,
   showDescription = true,
   showAssociatedTickets = true,
+  showPullRequests = true,
   onClick,
 }: TodoCardProps) {
   const subtasks = todo.subtasks ?? [];
@@ -57,10 +59,12 @@ export function TodoCard({
             {todo.service && <ServiceBadge service={todo.service} compact={compactUuid} />}
           </div>
           <div className="todo-title">{todo.title}</div>
-          <PullRequestList
-            pullRequests={todo.pullRequests ?? []}
-            compact={compact}
-          />
+          {showPullRequests && (
+            <PullRequestList
+              pullRequests={todo.pullRequests ?? []}
+              compact={compact}
+            />
+          )}
           {showAssociatedTickets && (
             <AssociatedTicketList associatedTickets={todo.associatedTickets ?? []} compact={compact} />
           )}
@@ -94,10 +98,12 @@ export function TodoCard({
               <li key={subtask.id} className="subtask-item">
                 <div className="subtask-item-content">
                   <span className="subtask-name">{subtask.name}</span>
-                  <PullRequestList
-                    pullRequests={subtask.pullRequests ?? []}
-                    compact={compact}
-                  />
+                  {showPullRequests && (
+                    <PullRequestList
+                      pullRequests={subtask.pullRequests ?? []}
+                      compact={compact}
+                    />
+                  )}
                   <DeployedEnvironmentList
                     deployedEnvironments={subtask.deployedEnvironments ?? []}
                     compact={compact}

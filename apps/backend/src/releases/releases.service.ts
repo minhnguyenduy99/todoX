@@ -26,6 +26,11 @@ import {
   aggregateReleaseStatus,
   resolveServiceOutcomes,
 } from '../common/release-deployment-status-sync';
+import {
+  assembleTodoChangelogSection,
+  extractReleasePreamble,
+  mergeReleaseContent,
+} from '../common/release-content-assembler';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -79,12 +84,16 @@ export class ReleasesService {
     }
 
     const todos = await this.loadAndValidateTodos(dto.todoIds, dto.type);
+    const mergedContent = mergeReleaseContent(
+      dto.content,
+      assembleTodoChangelogSection(todos),
+    );
 
     const release = await this.prisma.$transaction(async (tx) => {
       const created = await tx.release.create({
         data: {
           releaseDate: dto.releaseDate,
-          content: dto.content,
+          content: mergedContent,
           type: dto.type,
           status: PrismaReleaseStatus.in_progress,
         },
@@ -191,10 +200,22 @@ export class ReleasesService {
           });
         }
 
-        if (hasContentChange) {
+        if (hasMembershipChange || hasContentChange) {
+          const preamble =
+            dto.content !== undefined
+              ? dto.content
+              : extractReleasePreamble(existing.content);
+          const members = await tx.releaseMember.findMany({
+            where: { releaseId: id },
+            include: { todo: { include: { service: true } } },
+          });
+          const mergedContent = mergeReleaseContent(
+            preamble,
+            assembleTodoChangelogSection(members.map((member) => member.todo)),
+          );
           await tx.release.update({
             where: { id },
-            data: { content: dto.content },
+            data: { content: mergedContent },
           });
         }
 
@@ -423,6 +444,7 @@ export class ReleasesService {
             releaseId,
             title: todo.title,
             description: todo.description,
+            changelog: todo.changelog,
             status: todo.status,
             serviceId: todo.serviceId,
             associatedTickets: todo.associatedTickets.map((ticket) => ({

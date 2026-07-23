@@ -107,6 +107,10 @@ const tools = [
       properties: {
         title: { type: 'string', description: 'Todo title' },
         description: { type: 'string', description: 'Optional description' },
+        changelog: {
+          type: 'string',
+          description: 'Optional release-note text for this todo',
+        },
         status: {
           type: 'string',
           enum: Object.values(TodoStatus),
@@ -183,6 +187,10 @@ const tools = [
         id: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
+        changelog: {
+          type: 'string',
+          description: 'Optional release-note text for this todo',
+        },
         status: { type: 'string', enum: Object.values(TodoStatus) },
         pullRequests: {
           type: 'array',
@@ -516,6 +524,7 @@ function createMcpServer(): Server {
           result = await api.createTodo({
             title: a.title as string,
             description: a.description as string | undefined,
+            changelog: a.changelog as string | undefined,
             status: a.status as TodoStatus | undefined,
             monitor: a.monitor as CreateTodoDto['monitor'],
             pullRequests: resolveCreatePullRequests(a),
@@ -541,6 +550,7 @@ function createMcpServer(): Server {
           result = await api.updateTodo(a.id as string, {
             title: a.title as string | undefined,
             description: a.description as string | undefined,
+            changelog: a.changelog as string | undefined,
             status: a.status as TodoStatus | undefined,
             monitor: a.monitor as UpdateTodoDto['monitor'],
             pullRequests: await resolveUpdatePullRequests(api, { todoId: a.id as string }, a),
