@@ -2,7 +2,7 @@
 name: todox-deploy
 description: >-
   Deploy TodoX catalog services to dev, uat, or uat-main via Jenkins, validate
-  services, gate on merged dev/main PRs, and attach deployment monitors to
+  services, gate on merged dev PRs or all todo PRs for uat-main, and attach deployment monitors to
   matching todos. Use when the user asks to deploy services to dev/uat/uat-main,
   run todox-deploy, or trigger Jenkins deploys for TodoX todos.
 argument-hint: "[environment: dev|uat|uat-main] [service-key-names...]"
@@ -66,7 +66,7 @@ Per-environment todo selection:
 |-----------------|---------------------|---------------|
 | `dev` | `IN_PROGRESS` | dev-based PRs (`baseRefName === "dev"`) |
 | `uat` | `IN_PROGRESS` | none |
-| `uat-main` | `TESTING` | main-based PRs (`baseRefName === "main"`) |
+| `uat-main` | `TESTING` | all associated PRs on matching todos |
 
 For **each** input service, call MCP `list_todos` with:
 
@@ -101,14 +101,19 @@ gh pr view <number> --repo <owner>/<repo> --json merged,state,baseRefName,title,
 
 **3.3.1** — Todos are already listed above (`TESTING`).
 
-**3.3.2** — Same flow as **dev** (step 3.1.2), but treat a PR as **main-based** when GitHub reports `baseRefName === "main"`.
+**3.3.2** — For every associated pull request on those todos (`todo.pullRequests[]`), verify merge state — do **not** filter by `baseRefName`. Some todos use a single PR for all environments instead of separate dev-based and main-based PRs.
 
-For each main-based PR:
+For each associated PR:
 
-1. Parse `owner`, `repo`, and PR number from `pullRequest.url`.
-2. Verify merge state via `gh` (same command as dev).
-3. **If any main-based PR has `merged: false`:** stop and tell the user to merge those PRs first.
-4. **When all main-based PRs for the affected todos are merged:** refresh stored PR status on each todo via MCP `update_todo` (or `add_associated_pull_request` per PR).
+1. Parse `owner`, `repo`, and PR number from `pullRequest.url` (GitHub `…/owner/repo/pull/N`).
+2. Verify merge state with the real GitHub API via `gh` (do not trust stored `pullRequest.status` alone):
+
+```bash
+gh pr view <number> --repo <owner>/<repo> --json merged,state,baseRefName,title,url
+```
+
+3. **If any associated PR has `merged: false`:** stop and tell the user to merge those PRs first. Include PR number, title, and URL in the message.
+4. **When all associated PRs for the affected todos are merged:** refresh stored PR status on each todo via MCP `update_todo` (or `add_associated_pull_request` per PR) so `pullRequest.status` is `merged` and matches `gh` output.
 
 ### 4. Deploy services and update todos
 
@@ -164,7 +169,7 @@ When finished, summarize:
 - Environment and services deployed
 - Jenkins build number and build URL per service
 - Todos updated (id, title, service, status filter used)
-- PRs verified merged (dev or uat-main only)
+- PRs verified merged (dev-based PRs for `dev`; all associated PRs for `uat-main`)
 - Any todos skipped and why
 
 ## Stop conditions (fail closed)
@@ -174,7 +179,7 @@ When finished, summarize:
 | Unknown service `keyName` | Stop at step 1 |
 | Missing catalog `jobUrl` for environment | Stop at step 2 |
 | Dev PR with `baseRefName=dev` not merged | Stop at step 3.1.2 |
-| Main PR with `baseRefName=main` not merged | Stop at step 3.3.2 |
+| Any associated PR on uat-main todos not merged | Stop at step 3.3.2 |
 | Jenkins trigger or build resolution failure | Stop at step 4.1 |
 | MCP / `gh` / Jenkins auth errors | Stop and report the failing command |
 
@@ -196,10 +201,10 @@ Expected: validate → resolve job URLs → list `IN_PROGRESS` todos → verify 
 
 Expected: validate → resolve job URL → list `IN_PROGRESS` todos for `flo-api` → trigger Jenkins → attach monitors (no PR gate).
 
-**Deploy to uat-main after main PRs are merged**
+**Deploy to uat-main after all todo PRs are merged**
 
 ```
 /todox-deploy uat-main billing-api
 ```
 
-Expected: validate → resolve job URLs → list `TESTING` todos → verify main-base PRs via `gh` → trigger Jenkins → attach `uat-main` env chips + deployment monitors.
+Expected: validate → resolve job URLs → list `TESTING` todos → verify every associated PR via `gh` (regardless of base branch) → trigger Jenkins → attach `uat-main` env chips + deployment monitors.

@@ -19,7 +19,7 @@ Call `GetMcpTools` with server `todo-platform` before invoking tools.
 |---------------|---------------------|---------|
 | `dev` | `IN_PROGRESS` | dev-based (`baseRefName === "dev"`) |
 | `uat` | `IN_PROGRESS` | none |
-| `uat-main` | `TESTING` | main-based (`baseRefName === "main"`) |
+| `uat-main` | `TESTING` | all associated PRs on matching todos |
 
 Wire values: `TodoStatus.IN_PROGRESS` → `"IN_PROGRESS"`, `TodoStatus.TESTING` → `"TESTING"`.
 
@@ -125,7 +125,7 @@ gh pr view 123 --repo my-org/my-repo \
 | Flow | PR filter | Gate |
 |------|-----------|------|
 | `dev` | `baseRefName == "dev"` | all such PRs on affected todos must have `"merged": true` |
-| `uat-main` | `baseRefName == "main"` | all such PRs on affected todos must have `"merged": true` |
+| `uat-main` | none (check every `todo.pullRequests[]` entry) | all associated PRs on affected todos must have `"merged": true` |
 | `uat` | — | no PR gate |
 
 If any gated PR has `merged: false`, stop and list open PRs (number, title, URL).
