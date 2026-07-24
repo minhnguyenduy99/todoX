@@ -6,6 +6,7 @@ import {
   mapJenkinsBuildToDeployment,
   mapJenkinsBuildToScan,
   parseJobNameFromUrl,
+  resolveJenkinsBuildDurationMs,
 } from './monitor-providers';
 import {
   DeployedEnvironmentName,
@@ -60,15 +61,19 @@ describe('mapJenkinsBuildToDeployment', () => {
   };
 
   it('maps building true to in_progress', () => {
+    const now = 1_800_000_000_000;
+    jest.spyOn(Date, 'now').mockReturnValue(now);
     const { deployment, monitorStatus } = mapJenkinsBuildToDeployment(cfg, {
       building: true,
       result: null,
       duration: 0,
-      timestamp: 1784521296700,
+      timestamp: now - 125_000,
       url: 'https://jenkins.example.net/job/my-job/2790/',
     });
     expect(deployment.status).toBe(DeploymentStatus.IN_PROGRESS);
+    expect(deployment.durationMs).toBe(125_000);
     expect(monitorStatus).toBe(MonitorResultStatus.RUNNING);
+    jest.restoreAllMocks();
   });
 
   it('maps SUCCESS to success with duration', () => {
@@ -94,6 +99,35 @@ describe('mapJenkinsBuildToDeployment', () => {
     });
     expect(deployment.status).toBe(DeploymentStatus.FAIL);
     expect(monitorStatus).toBe(MonitorResultStatus.FAILED);
+  });
+});
+
+describe('resolveJenkinsBuildDurationMs', () => {
+  it('uses Jenkins duration when present', () => {
+    expect(
+      resolveJenkinsBuildDurationMs({
+        building: false,
+        result: 'SUCCESS',
+        duration: 2303459,
+        timestamp: 1,
+        url: 'https://jenkins.example.net/job/my-job/1/',
+      }),
+    ).toBe(2303459);
+  });
+
+  it('derives elapsed time for in-progress builds with zero duration', () => {
+    const now = 1_800_000_000_000;
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    expect(
+      resolveJenkinsBuildDurationMs({
+        building: true,
+        result: null,
+        duration: 0,
+        timestamp: now - 90_000,
+        url: 'https://jenkins.example.net/job/my-job/414/',
+      }),
+    ).toBe(90_000);
+    jest.restoreAllMocks();
   });
 });
 

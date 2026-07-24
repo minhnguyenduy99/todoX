@@ -132,6 +132,14 @@ interface JenkinsBuildResponse {
   url: string;
 }
 
+export function resolveJenkinsBuildDurationMs(build: JenkinsBuildResponse): number | null {
+  if (build.duration > 0) return build.duration;
+  if (build.building && build.timestamp > 0) {
+    return Math.max(0, Date.now() - build.timestamp);
+  }
+  return null;
+}
+
 export function parseJobNameFromUrl(jobUrl: string): string {
   const trimmed = jobUrl.replace(/\/+$/, '');
   const segments = trimmed.split('/');
@@ -167,7 +175,7 @@ export function mapJenkinsBuildToDeployment(
     env: cfg.env,
     jobName: parseJobNameFromUrl(cfg.jobUrl),
     buildNumber: cfg.buildNumber,
-    durationMs: build.duration > 0 ? build.duration : null,
+    durationMs: resolveJenkinsBuildDurationMs(build),
     status: deploymentStatus,
     buildUrl: build.url,
     timestamp: build.timestamp,
@@ -200,7 +208,7 @@ export function mapJenkinsBuildToScan(
   const scan: ScanJobInfo = {
     jobName: parseJobNameFromUrl(cfg.jobUrl),
     buildNumber: cfg.buildNumber,
-    durationMs: build.duration > 0 ? build.duration : null,
+    durationMs: resolveJenkinsBuildDurationMs(build),
     status: scanStatus,
     buildUrl: build.url,
     timestamp: build.timestamp,

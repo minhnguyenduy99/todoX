@@ -6,6 +6,10 @@ import {
   type DeployedEnvironmentName,
 } from '@todo-platform/shared-types';
 import { sortDeploymentsForDisplay } from '../utils/deploymentSort';
+import {
+  formatDeploymentDuration,
+  resolveDeploymentDurationMs,
+} from '../utils/deploymentDisplay';
 
 interface DeployedEnvironmentListProps {
   deployedEnvironments: DeployedEnvironmentDto[];
@@ -41,12 +45,17 @@ function deploymentChipClassName(status: DeploymentStatus | undefined): string {
   }
 }
 
-function formatDuration(durationMs: number | null): string | null {
-  if (durationMs === null || durationMs <= 0) return null;
-  if (durationMs < 60_000) return `${Math.round(durationMs / 1000)}s`;
-  const minutes = Math.floor(durationMs / 60_000);
-  const seconds = Math.round((durationMs % 60_000) / 1000);
-  return `${minutes}m ${seconds}s`;
+function formatDuration(
+  deployment: DeployedEnvironmentDto['deployment'],
+): string | null {
+  if (!deployment) return null;
+  return formatDeploymentDuration(
+    resolveDeploymentDurationMs(
+      deployment.durationMs,
+      deployment.status,
+      deployment.timestamp,
+    ),
+  );
 }
 
 function buildChipTitle(env: DeployedEnvironmentDto): string {
@@ -59,7 +68,7 @@ function buildChipTitle(env: DeployedEnvironmentDto): string {
     `Build #${deployment.buildNumber}`,
     `Status: ${deployment.status}`,
   ];
-  const duration = formatDuration(deployment.durationMs);
+  const duration = formatDuration(deployment);
   if (duration) parts.push(`Duration: ${duration}`);
   if (deployment.buildUrl) parts.push(deployment.buildUrl);
   return parts.join(' · ');
@@ -156,7 +165,7 @@ export function DeployedEnvironmentList({
       <div className="deployment-lines" title="Deployments">
         {sorted.map((env) => {
           const deployment = env.deployment;
-          const duration = deployment ? formatDuration(deployment.durationMs) : null;
+          const duration = formatDuration(deployment);
           const rowClassName = `deployment-line env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
 
           return (
@@ -181,7 +190,7 @@ export function DeployedEnvironmentList({
     >
       {sorted.map((env) => {
         const deployment = env.deployment;
-        const duration = deployment ? formatDuration(deployment.durationMs) : null;
+        const duration = formatDuration(deployment);
 
         const chipClassName = `env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
 

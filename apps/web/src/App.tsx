@@ -6,6 +6,7 @@ import { TodoListView } from './components/TodoListView';
 import { KanbanView } from './components/KanbanView';
 import { ReleasesView } from './components/ReleasesView';
 import { ServicesView } from './components/ServicesView';
+import { ActiveDeploymentsPanel } from './components/ActiveDeploymentsPanel';
 import { SideNav, type AppSection } from './components/SideNav';
 import { ServiceFilterCombobox } from './components/ServiceFilterCombobox';
 import {
@@ -108,6 +109,12 @@ export function App() {
         )}
 
         <div className={`app-layout${section === 'services' ? ' app-layout-full' : ''}`}>
+          {section === 'todos' && (
+            <aside className="app-deployments" aria-label="Today's deployments">
+              <ActiveDeploymentsPanel todos={todos ?? []} />
+            </aside>
+          )}
+
           <div className="app-main">
             {section === 'todos' && isLoading && (
               <div className="loading">Loading todos...</div>
