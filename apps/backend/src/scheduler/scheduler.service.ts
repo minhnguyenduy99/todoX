@@ -14,7 +14,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorProviderRegistry } from '../monitors/providers/monitor-provider.registry';
 import { toMonitorDto, toMonitorResult, toSubtaskDto, toTodoDto } from '../common/mappers';
-import { resolveTodoStatusOnDeploySuccess } from '../common/todo-deployment-status-sync';
+import {
+  isTodoStatusSyncSuppressedForDeploymentMonitor,
+  resolveTodoStatusOnDeploySuccess,
+  shouldApplyTodoStatusTransition,
+} from '../common/todo-deployment-status-sync';
+import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { mapMonitorResultToDeploymentStatus } from '../common/release-deployment-status-sync';
 import {
   isTerminalTestcaseScanStatus,
@@ -22,6 +27,7 @@ import {
 } from '../common/testcase-scan-status-sync';
 import {
   MonitorResultStatus,
+  MonitorType,
   ReleaseDeploymentStatus,
   SubtaskStatus,
   TodoStatus,
@@ -29,6 +35,7 @@ import {
 } from '@todo-platform/shared-types';
 import type { EnvConfig } from '../config/env.validation';
 import { ReleasesService } from '../releases/releases.service';
+import { ReleaseDeploymentDiscoveryService } from '../releases/release-deployment-discovery.service';
 
 export const MONITOR_QUEUE = 'monitor-checks';
 
@@ -47,6 +54,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly logger: Logger,
     @Inject(forwardRef(() => ReleasesService))
     private readonly releasesService: ReleasesService,
+    @Inject(forwardRef(() => ReleaseDeploymentDiscoveryService))
+    private readonly releaseDeploymentDiscovery: ReleaseDeploymentDiscoveryService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -151,6 +160,13 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (monitor.releaseId && monitor.type === MonitorType.DEPLOYMENT_DISCOVERY) {
+      await this.syncReleaseDiscoveryMonitor(monitor.id, monitor.releaseId, result);
+      const dto = toMonitorDto(updated);
+      this.events.broadcast('monitor.updated', dto);
+      return;
+    }
+
     if (monitor.testcaseScanId) {
       await this.syncTestcaseScanMonitor(monitor.testcaseScanId, result, monitorId);
       const dto = toMonitorDto(updated);
@@ -173,7 +189,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         )
       : null;
 
-    if (todoId && nextTodoStatus) {
+    const suppressStatusSync =
+      isTodoStatusSyncSuppressedForDeploymentMonitor(monitor.config) ||
+      (todoId != null && (await this.isTodoOnNonTerminalRelease(todoId)));
+
+    if (todoId && nextTodoStatus && !suppressStatusSync) {
       await this.syncTodoStatusOnDeploySuccess(todoId, nextTodoStatus);
     } else if (monitor.todoId) {
       await this.broadcastTodoUpdated(monitor.todoId);
@@ -212,6 +232,29 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     await this.broadcastTodoUpdated(scan.todoId);
   }
 
+  private async syncReleaseDiscoveryMonitor(
+    monitorId: string,
+    releaseId: string,
+    result: MonitorResult,
+  ): Promise<void> {
+    const discovered = Array.isArray(result.metadata?.discovered)
+      ? (result.metadata.discovered as Array<{
+          serviceId: string;
+          jobUrl: string;
+          buildNumber: number;
+        }>)
+      : [];
+
+    await this.releaseDeploymentDiscovery.applyDiscoveryPollResult(
+      monitorId,
+      releaseId,
+      discovered,
+    );
+
+    const release = await this.releasesService.findOne(releaseId);
+    this.events.broadcast('release.updated', release);
+  }
+
   private async syncReleaseDeploymentMonitor(
     releaseDeploymentId: string,
     result: MonitorResult,
@@ -235,11 +278,34 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     todoId: string,
     status: TodoStatus,
   ): Promise<void> {
+    const todo = await this.prisma.todo.findUnique({
+      where: { id: todoId },
+      select: { status: true },
+    });
+    if (!todo) return;
+
+    const currentStatus = todo.status as TodoStatus;
+    if (!shouldApplyTodoStatusTransition(currentStatus, status)) {
+      await this.broadcastTodoUpdated(todoId);
+      return;
+    }
+
     await this.prisma.todo.update({
       where: { id: todoId },
       data: { status },
     });
     await this.broadcastTodoUpdated(todoId);
+  }
+
+  private async isTodoOnNonTerminalRelease(todoId: string): Promise<boolean> {
+    const membership = await this.prisma.releaseMember.findFirst({
+      where: {
+        todoId,
+        release: { status: { in: NON_TERMINAL_RELEASE_STATUSES } },
+      },
+      select: { id: true },
+    });
+    return membership != null;
   }
 
   private async broadcastTodoUpdated(todoId: string): Promise<void> {

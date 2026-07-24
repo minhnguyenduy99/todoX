@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MonitorsController } from './monitors.controller';
 import { MonitorsService } from './monitors.service';
 import {
+  DeploymentDiscoveryMonitorProvider,
   DeploymentMonitorProvider,
   GitHubPrMonitorProvider,
   HttpMonitorProvider,
@@ -18,6 +19,7 @@ import { SchedulerModule } from '../scheduler/scheduler.module';
     HttpMonitorProvider,
     GitHubPrMonitorProvider,
     DeploymentMonitorProvider,
+    DeploymentDiscoveryMonitorProvider,
     TestcaseScanMonitorProvider,
     MonitorProviderRegistry,
   ],

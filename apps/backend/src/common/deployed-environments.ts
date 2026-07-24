@@ -11,6 +11,19 @@ const prismaNameByApiName: Record<DeployedEnvironmentName, string> = {
   [DeployedEnvironmentName.STAGING]: 'staging',
 };
 
+const apiNameByPrismaName: Record<string, DeployedEnvironmentName> = {
+  dev: DeployedEnvironmentName.DEV,
+  uat: DeployedEnvironmentName.UAT,
+  uat_main: DeployedEnvironmentName.UAT_MAIN,
+  staging: DeployedEnvironmentName.STAGING,
+};
+
+export function fromPrismaDeployedEnvironmentName(
+  name: string,
+): DeployedEnvironmentName {
+  return apiNameByPrismaName[name] ?? DeployedEnvironmentName.DEV;
+}
+
 export function toPrismaDeployedEnvironmentName(
   name: DeployedEnvironmentName,
 ): 'dev' | 'uat' | 'uat_main' | 'staging' {
@@ -24,6 +37,19 @@ export function sortDeployedEnvironmentNames(
     (a, b) =>
       DEPLOYED_ENVIRONMENT_ORDER.indexOf(a) - DEPLOYED_ENVIRONMENT_ORDER.indexOf(b),
   );
+}
+
+export async function addDeployedEnvironmentToTodo(
+  prisma: PrismaService,
+  todoId: string,
+  incoming: DeployedEnvironmentName,
+): Promise<void> {
+  const existing = await prisma.deployedEnvironment.findMany({ where: { todoId } });
+  const names = existing.map((row) => fromPrismaDeployedEnvironmentName(row.name));
+  const merged = sortDeployedEnvironmentNames([
+    ...new Set([...names, incoming]),
+  ]);
+  await syncDeployedEnvironments(prisma, { todoId }, merged);
 }
 
 export async function syncDeployedEnvironments(

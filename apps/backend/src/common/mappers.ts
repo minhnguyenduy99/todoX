@@ -65,6 +65,7 @@ export function toMonitorDto(monitor: Monitor): MonitorDto {
     todoId: monitor.todoId,
     subtaskId: monitor.subtaskId,
     releaseDeploymentId: monitor.releaseDeploymentId ?? null,
+    releaseId: monitor.releaseId ?? null,
     testcaseScanId: monitor.testcaseScanId ?? null,
     type: monitor.type as MonitorType,
     cron: monitor.cron,

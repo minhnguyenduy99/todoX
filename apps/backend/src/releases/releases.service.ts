@@ -12,6 +12,7 @@ import {
   type Prisma,
 } from '@prisma/client';
 import {
+  DeployedEnvironmentName,
   MonitorType,
   ReleaseDeploymentStatus,
   ReleaseStatus,
@@ -20,6 +21,7 @@ import {
   type ReleaseDto,
   type UpdateReleaseDto,
 } from '@todo-platform/shared-types';
+import { addDeployedEnvironmentToTodo } from '../common/deployed-environments';
 import { toReleaseDto, toTodoDto } from '../common/mappers';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import {
@@ -34,6 +36,7 @@ import {
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReleaseDeploymentDiscoveryService } from './release-deployment-discovery.service';
 
 const DEFAULT_DEPLOY_CRON = '*/5 * * * *';
 
@@ -63,6 +66,8 @@ export class ReleasesService {
     private readonly events: EventsGateway,
     @Inject(forwardRef(() => MonitorsService))
     private readonly monitorsService: MonitorsService,
+    @Inject(forwardRef(() => ReleaseDeploymentDiscoveryService))
+    private readonly releaseDeploymentDiscovery: ReleaseDeploymentDiscoveryService,
   ) {}
 
   async findAll(): Promise<ReleaseDto[]> {
@@ -140,6 +145,8 @@ export class ReleasesService {
       const serviceIds = await this.resolveDeploymentServiceIds(dto.deployments);
       await this.startMonitorsForServices(release.id, dto.type, serviceIds);
     }
+
+    await this.releaseDeploymentDiscovery.maybeStartDiscoveryMonitor(release.id);
 
     const full = await this.getReleaseOrThrow(release.id);
     const result = toReleaseDto(full);
@@ -280,6 +287,7 @@ export class ReleasesService {
           existing.type as ReleaseType,
           serviceIds,
         );
+        await this.releaseDeploymentDiscovery.maybeStartDiscoveryMonitor(id);
       }
     }
 
@@ -407,12 +415,73 @@ export class ReleasesService {
 
     if (!todoIds.length) return;
 
+    const deployment = await this.prisma.releaseDeployment.findUnique({
+      where: { releaseId_serviceId: { releaseId, serviceId } },
+      include: { monitor: true },
+    });
+
+    if (deployment?.jobUrl && deployment.buildNumber != null) {
+      await this.attachTodoDeploymentMonitorsForService(
+        releaseId,
+        serviceId,
+        deployment.jobUrl,
+        deployment.buildNumber,
+      );
+      await this.backfillMemberTodoStagingMonitorFromRelease(deployment);
+    } else {
+      for (const todoId of todoIds) {
+        await addDeployedEnvironmentToTodo(
+          this.prisma,
+          todoId,
+          DeployedEnvironmentName.STAGING,
+        );
+      }
+      await this.broadcastTodosUpdated(todoIds);
+    }
+
     await this.prisma.todo.updateMany({
       where: { id: { in: todoIds } },
       data: { status: 'COMPLETED' },
     });
 
     await this.broadcastTodosUpdated(todoIds);
+  }
+
+  /** Copy release deployment monitor poll results onto member todo staging monitors. */
+  private async backfillMemberTodoStagingMonitorFromRelease(
+    deployment: Prisma.ReleaseDeploymentGetPayload<{ include: { monitor: true } }>,
+  ): Promise<void> {
+    const releaseMonitor = deployment.monitor;
+    if (!releaseMonitor?.lastResult) return;
+
+    const members = await this.prisma.releaseMember.findMany({
+      where: { releaseId: deployment.releaseId },
+      include: { todo: true },
+    });
+
+    const touchedTodoIds: string[] = [];
+
+    for (const member of members) {
+      if (member.todo.serviceId !== deployment.serviceId) continue;
+
+      const todoMonitor = await this.prisma.monitor.findUnique({
+        where: { todoId: member.todoId },
+      });
+      if (!todoMonitor) continue;
+
+      await this.prisma.monitor.update({
+        where: { id: todoMonitor.id },
+        data: {
+          lastResult: releaseMonitor.lastResult as Prisma.InputJsonValue,
+          lastRunAt: releaseMonitor.lastRunAt,
+        },
+      });
+      touchedTodoIds.push(member.todoId);
+    }
+
+    if (touchedTodoIds.length) {
+      await this.broadcastTodosUpdated(touchedTodoIds);
+    }
   }
 
   async archiveProdTodosForService(
@@ -712,7 +781,74 @@ export class ReleasesService {
         },
         { silent: true },
       );
+
+      if (environment === ReleaseType.STAGING) {
+        await this.attachTodoDeploymentMonitorsForService(
+          releaseId,
+          deployment.serviceId,
+          deployment.jobUrl,
+          deployment.buildNumber,
+        );
+      }
     }
+  }
+
+  /** Attach staging env chips and todo deployment monitors for release member todos (MCP parity). */
+  async attachTodoDeploymentMonitorsForService(
+    releaseId: string,
+    serviceId: string,
+    jobUrl: string,
+    buildNumber: number,
+  ): Promise<void> {
+    const members = await this.prisma.releaseMember.findMany({
+      where: { releaseId },
+      include: { todo: true },
+    });
+
+    const monitorPayload = {
+      type: MonitorType.DEPLOYMENT,
+      cron: DEFAULT_DEPLOY_CRON,
+      enabled: true,
+      config: {
+        env: 'staging' as const,
+        jobUrl,
+        buildNumber,
+        suppressTodoStatusSync: true,
+      },
+    };
+
+    const touchedTodoIds: string[] = [];
+
+    for (const member of members) {
+      if (member.todo.serviceId !== serviceId) continue;
+
+      await addDeployedEnvironmentToTodo(
+        this.prisma,
+        member.todoId,
+        DeployedEnvironmentName.STAGING,
+      );
+
+      const existingMonitor = await this.prisma.monitor.findUnique({
+        where: { todoId: member.todoId },
+      });
+
+      if (existingMonitor) {
+        await this.monitorsService.update(existingMonitor.id, monitorPayload, {
+          silent: true,
+          clearLastResult: true,
+        });
+      } else {
+        await this.monitorsService.createForTodo(
+          member.todoId,
+          monitorPayload,
+          { silent: true },
+        );
+      }
+
+      touchedTodoIds.push(member.todoId);
+    }
+
+    await this.broadcastTodosUpdated(touchedTodoIds);
   }
 
   private async broadcastTodosUpdated(todoIds: string[]): Promise<void> {

@@ -55,6 +55,38 @@ export function shouldSetTodoWaitForStagingOnDeployResult(
   );
 }
 
+/** Forward-only todo status progression used by deployment monitor sync. */
+const TODO_STATUS_PROGRESSION: TodoStatus[] = [
+  TodoStatus.NOT_STARTED,
+  TodoStatus.IN_PROGRESS,
+  TodoStatus.TESTING,
+  TodoStatus.WAIT_FOR_STAGING,
+  TodoStatus.COMPLETED,
+];
+
+function todoStatusRank(status: TodoStatus): number {
+  return TODO_STATUS_PROGRESSION.indexOf(status);
+}
+
+/** True when a deployment-driven status change advances the todo, never regresses it. */
+export function shouldApplyTodoStatusTransition(
+  currentStatus: TodoStatus,
+  nextStatus: TodoStatus,
+): boolean {
+  const currentRank = todoStatusRank(currentStatus);
+  const nextRank = todoStatusRank(nextStatus);
+  if (currentRank === -1 || nextRank === -1) return false;
+  return nextRank > currentRank;
+}
+
+/** True when a deployment monitor must not drive TodoStatus transitions (release-attached staging monitors). */
+export function isTodoStatusSyncSuppressedForDeploymentMonitor(
+  config: unknown,
+): boolean {
+  const cfg = config as DeploymentMonitorConfig | null | undefined;
+  return cfg?.suppressTodoStatusSync === true;
+}
+
 /** Todo status to apply on first successful deployment poll, or null if unchanged. */
 export function resolveTodoStatusOnDeploySuccess(
   previousResult: MonitorResult | null,

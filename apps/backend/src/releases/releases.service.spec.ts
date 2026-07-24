@@ -9,6 +9,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReleasesService } from './releases.service';
+import { ReleaseDeploymentDiscoveryService } from './release-deployment-discovery.service';
 
 describe('ReleasesService', () => {
   let service: ReleasesService;
@@ -32,6 +33,15 @@ describe('ReleasesService', () => {
       upsert: jest.Mock;
       updateMany: jest.Mock;
     };
+    deployedEnvironment: {
+      findMany: jest.Mock;
+      deleteMany: jest.Mock;
+      create: jest.Mock;
+    };
+    monitor: {
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
     todo: {
       findMany: jest.Mock;
       updateMany: jest.Mock;
@@ -44,6 +54,8 @@ describe('ReleasesService', () => {
   let events: { broadcast: jest.Mock };
   let monitorsService: {
     createForReleaseDeployment: jest.Mock;
+    update: jest.Mock;
+    createForTodo: jest.Mock;
   };
 
   const serviceA = {
@@ -110,6 +122,15 @@ describe('ReleasesService', () => {
         upsert: jest.fn(),
         updateMany: jest.fn(),
       },
+      deployedEnvironment: {
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn(),
+        create: jest.fn(),
+      },
+      monitor: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
       todo: {
         findMany: jest.fn(),
         updateMany: jest.fn(),
@@ -122,6 +143,11 @@ describe('ReleasesService', () => {
     events = { broadcast: jest.fn() };
     monitorsService = {
       createForReleaseDeployment: jest.fn(),
+      update: jest.fn(),
+      createForTodo: jest.fn(),
+    };
+    const releaseDeploymentDiscovery = {
+      maybeStartDiscoveryMonitor: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -130,6 +156,10 @@ describe('ReleasesService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: EventsGateway, useValue: events },
         { provide: MonitorsService, useValue: monitorsService },
+        {
+          provide: ReleaseDeploymentDiscoveryService,
+          useValue: releaseDeploymentDiscovery,
+        },
       ],
     }).compile();
 
@@ -368,6 +398,10 @@ describe('ReleasesService', () => {
   });
 
   it('manual successful status completes all staging member todos', async () => {
+    jest
+      .spyOn(service, 'attachTodoDeploymentMonitorsForService')
+      .mockResolvedValue(undefined);
+
     const completedMembers = [
       { todoId: 'todo-a', todo: { ...todoA, status: 'COMPLETED' } },
       { todoId: 'todo-b', todo: { ...todoB, status: 'COMPLETED' } },
@@ -386,6 +420,11 @@ describe('ReleasesService', () => {
       { todoId: 'todo-a', todo: todoA },
       { todoId: 'todo-b', todo: todoB },
     ]);
+    prisma.releaseDeployment.findUnique.mockResolvedValue({
+      jobUrl: 'https://jenkins/job/staging',
+      buildNumber: 166,
+      monitor: null,
+    });
     prisma.todo.updateMany.mockResolvedValue({ count: 2 });
     prisma.todo.findMany.mockResolvedValue([
       { ...todoA, status: 'COMPLETED', monitor: null, subtasks: [], pullRequests: [], associatedTickets: [], deployedEnvironments: [] },
@@ -407,6 +446,62 @@ describe('ReleasesService', () => {
       data: { status: ReleaseStatus.SUCCESSFUL },
     });
     expect(result.status).toBe('successful');
+  });
+
+  it('completeStagingTodosForService attaches staging env when deployment succeeds', async () => {
+    const attachSpy = jest
+      .spyOn(service, 'attachTodoDeploymentMonitorsForService')
+      .mockResolvedValue(undefined);
+
+    prisma.releaseMember.findMany.mockResolvedValue([
+      { todoId: 'todo-a', todo: todoA },
+    ]);
+    prisma.releaseDeployment.findUnique.mockResolvedValue({
+      id: 'dep-1',
+      releaseId: 'rel-1',
+      serviceId: 'svc-a',
+      jobUrl: 'https://jenkins/job/staging',
+      buildNumber: 166,
+      monitor: {
+        lastResult: { status: 'success', message: 'ok' },
+        lastRunAt: new Date('2026-07-24T08:35:00Z'),
+      },
+    });
+    prisma.monitor.findUnique.mockResolvedValue({ id: 'mon-todo-a' });
+    prisma.monitor.update.mockResolvedValue({});
+    prisma.todo.updateMany.mockResolvedValue({ count: 1 });
+    prisma.todo.findMany.mockResolvedValue([
+      {
+        ...todoA,
+        status: 'COMPLETED',
+        monitor: null,
+        subtasks: [],
+        pullRequests: [],
+        associatedTickets: [],
+        deployedEnvironments: [],
+      },
+    ]);
+
+    await service.completeStagingTodosForService('rel-1', 'svc-a');
+
+    expect(attachSpy).toHaveBeenCalledWith(
+      'rel-1',
+      'svc-a',
+      'https://jenkins/job/staging',
+      166,
+    );
+    expect(prisma.monitor.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'mon-todo-a' },
+        data: expect.objectContaining({
+          lastResult: { status: 'success', message: 'ok' },
+        }),
+      }),
+    );
+    expect(prisma.todo.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['todo-a'] } },
+      data: { status: 'COMPLETED' },
+    });
   });
 
   it('recomputes release status when member todos become COMPLETED', async () => {

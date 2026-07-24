@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ReleaseType,
+  ReleaseDeploymentStatus,
+  type ReleaseDeploymentDto,
   type ReleaseDto,
 } from '@todo-platform/shared-types';
 import { fetchReleases, formatDate, releaseStatusColor, releaseStatusLabel } from '../api';
+import {
+  releaseDeploymentStatusChipClassName,
+  resolveReleaseDeploymentBuildUrl,
+} from '../utils/deploymentDisplay';
 
 export function ReleasesView() {
   const [selectedRelease, setSelectedRelease] = useState<ReleaseDto | null>(null);
@@ -202,15 +208,7 @@ function ReleasePanel({
             ) : (
               <ul className="release-deployment-list">
                 {release.deployments.map((deployment) => (
-                  <li key={deployment.id}>
-                    <span className="release-service-chip">{deployment.serviceKeyName}</span>
-                    <span className={`badge ${releaseDeploymentStatusColor(deployment.status)}`}>
-                      {deployment.status.replaceAll('_', ' ')}
-                    </span>
-                    {deployment.buildNumber != null && (
-                      <span className="release-muted">#{deployment.buildNumber}</span>
-                    )}
-                  </li>
+                  <ReleaseDeploymentItem key={deployment.id} deployment={deployment} />
                 ))}
               </ul>
             )}
@@ -221,15 +219,55 @@ function ReleasePanel({
   );
 }
 
-function releaseDeploymentStatusColor(status: string): string {
-  switch (status) {
-    case 'successful':
-      return 'badge-green';
-    case 'failed':
-      return 'badge-red';
-    case 'in_progress':
-      return 'badge-blue';
-    default:
-      return 'badge-gray';
-  }
+function ReleaseDeploymentItem({ deployment }: { deployment: ReleaseDeploymentDto }) {
+  const buildUrl = resolveReleaseDeploymentBuildUrl(deployment);
+  const chipClassName = `env-chip ${releaseDeploymentStatusChipClassName(deployment.status)} release-deployment-chip`;
+  const statusLabel = deployment.status.replaceAll('_', ' ');
+  const titleParts = [
+    deployment.serviceKeyName,
+    deployment.environment,
+    statusLabel,
+  ];
+  if (deployment.buildNumber != null) titleParts.push(`#${deployment.buildNumber}`);
+  if (buildUrl) titleParts.push(buildUrl);
+  const title = titleParts.join(' · ');
+
+  const chipContent = (
+    <>
+      <span
+        className={`env-chip-label${deployment.status === ReleaseDeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
+      >
+        {deployment.serviceKeyName}
+      </span>
+      <span className="env-chip-meta">
+        {deployment.status === ReleaseDeploymentStatus.IN_PROGRESS && (
+          <span className="env-chip-spinner" aria-hidden="true" />
+        )}
+        <span className="env-chip-build">{statusLabel}</span>
+        {deployment.buildNumber != null && (
+          <span className="env-chip-duration">#{deployment.buildNumber}</span>
+        )}
+      </span>
+    </>
+  );
+
+  return (
+    <li className="release-deployment-item">
+      {buildUrl ? (
+        <a
+          className={chipClassName}
+          href={buildUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={title}
+        >
+          {chipContent}
+        </a>
+      ) : (
+        <span className={chipClassName} title={title}>
+          {chipContent}
+        </span>
+      )}
+    </li>
+  );
 }

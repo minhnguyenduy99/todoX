@@ -929,7 +929,7 @@ a.env-chip:hover {
 }
 
 .env-chip-deploying {
-  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.35);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
 }
 
 .env-chip-deploy-success {
@@ -938,6 +938,29 @@ a.env-chip:hover {
 
 .env-chip-deploy-fail {
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.env-chip-status-in-progress {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.env-chip-status-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+
+.env-chip-status-fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.env-chip-status-neutral {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--gray);
 }
 
 .env-chip-dev {
@@ -1468,6 +1491,19 @@ a.env-chip:hover {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8125rem;
+}
+
+.release-deployment-item {
+  width: 100%;
+}
+
+.release-deployment-chip {
+  width: 100%;
+  justify-content: space-between;
+}
+
+a.release-deployment-chip:hover {
+  filter: brightness(1.15);
 }
 
 .release-service-chip {

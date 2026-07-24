@@ -6,7 +6,9 @@ import {
 } from '@todo-platform/shared-types';
 import {
   isUatDeploymentMonitor,
+  isTodoStatusSyncSuppressedForDeploymentMonitor,
   resolveTodoStatusOnDeploySuccess,
+  shouldApplyTodoStatusTransition,
   shouldSetTodoTestingOnDeployResult,
   shouldSetTodoWaitForStagingOnDeployResult,
 } from './todo-deployment-status-sync';
@@ -113,6 +115,47 @@ describe('todo-deployment-status-sync', () => {
           MonitorType.DEPLOYMENT,
           uatMainConfig,
         ),
+      ).toBe(false);
+    });
+  });
+
+  describe('isTodoStatusSyncSuppressedForDeploymentMonitor', () => {
+    it('returns true when suppressTodoStatusSync is set', () => {
+      expect(
+        isTodoStatusSyncSuppressedForDeploymentMonitor({
+          ...uatMainConfig,
+          suppressTodoStatusSync: true,
+        }),
+      ).toBe(true);
+    });
+
+    it('returns false for normal deployment monitors', () => {
+      expect(isTodoStatusSyncSuppressedForDeploymentMonitor(uatMainConfig)).toBe(false);
+    });
+  });
+
+  describe('shouldApplyTodoStatusTransition', () => {
+    it('allows IN_PROGRESS to advance to TESTING', () => {
+      expect(
+        shouldApplyTodoStatusTransition(TodoStatus.IN_PROGRESS, TodoStatus.TESTING),
+      ).toBe(true);
+    });
+
+    it('allows TESTING to advance to WAIT_FOR_STAGING', () => {
+      expect(
+        shouldApplyTodoStatusTransition(TodoStatus.TESTING, TodoStatus.WAIT_FOR_STAGING),
+      ).toBe(true);
+    });
+
+    it('blocks WAIT_FOR_STAGING from regressing to TESTING', () => {
+      expect(
+        shouldApplyTodoStatusTransition(TodoStatus.WAIT_FOR_STAGING, TodoStatus.TESTING),
+      ).toBe(false);
+    });
+
+    it('blocks COMPLETED from regressing to TESTING', () => {
+      expect(
+        shouldApplyTodoStatusTransition(TodoStatus.COMPLETED, TodoStatus.TESTING),
       ).toBe(false);
     });
   });

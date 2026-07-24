@@ -3,40 +3,13 @@ import type { TodoDto } from '@todo-platform/shared-types';
 import { DeploymentStatus } from '@todo-platform/shared-types';
 import { collectTodayServiceDeployments } from '../utils/activeDeployments';
 import {
+  deploymentStatusChipClassName,
   formatDeploymentDuration,
   resolveDeploymentDurationMs,
 } from '../utils/deploymentDisplay';
 
 interface ActiveDeploymentsPanelProps {
   todos: TodoDto[];
-}
-
-function envChipClassName(env: string): string {
-  switch (env) {
-    case 'dev':
-      return 'env-chip-dev';
-    case 'uat':
-      return 'env-chip-uat';
-    case 'uat-main':
-      return 'env-chip-uat-main';
-    case 'staging':
-      return 'env-chip-staging';
-    default:
-      return 'env-chip-default';
-  }
-}
-
-function deploymentChipClassName(status: DeploymentStatus): string {
-  switch (status) {
-    case DeploymentStatus.IN_PROGRESS:
-      return 'env-chip-deploying';
-    case DeploymentStatus.SUCCESS:
-      return 'env-chip-deploy-success';
-    case DeploymentStatus.FAIL:
-      return 'env-chip-deploy-fail';
-    default:
-      return '';
-  }
 }
 
 function DeploymentRow({
@@ -60,7 +33,7 @@ function DeploymentRow({
 }) {
   const resolvedDurationMs = resolveDeploymentDurationMs(durationMs, status, timestamp, nowMs);
   const duration = formatDeploymentDuration(resolvedDurationMs);
-  const chipClassName = `env-chip ${envChipClassName(environment)} ${deploymentChipClassName(status)}`;
+  const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip`;
   const titleParts = [
     `${serviceLabel} · ${environment}`,
     `Build #${buildNumber}`,
@@ -91,7 +64,7 @@ function DeploymentRow({
       <span className="deployment-active-service">{serviceLabel}</span>
       {buildUrl ? (
         <a
-          className={`${chipClassName} deployment-active-chip`}
+          className={chipClassName}
           href={buildUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -100,7 +73,7 @@ function DeploymentRow({
           {chipContent}
         </a>
       ) : (
-        <span className={`${chipClassName} deployment-active-chip`} title={title}>
+        <span className={chipClassName} title={title}>
           {chipContent}
         </span>
       )}

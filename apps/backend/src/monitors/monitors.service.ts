@@ -11,7 +11,7 @@ import type {
 } from '@todo-platform/shared-types';
 import { MonitorType } from '@todo-platform/shared-types';
 import { normalizeDeploymentMonitorConfig } from '../common/parse-jenkins-job-url';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import parser from 'cron-parser';
 
 @Injectable()
@@ -73,6 +73,7 @@ export class MonitorsService {
       | { subtaskId: string }
       | { todoId: string }
       | { releaseDeploymentId: string }
+      | { releaseId: string }
       | { testcaseScanId: string },
     dto: CreateMonitorDto,
     options?: { silent?: boolean },
@@ -94,7 +95,10 @@ export class MonitorsService {
 
     if (monitor.enabled) {
       await this.scheduler.scheduleMonitor(monitor.id, monitor.cron);
-      if (dto.type === MonitorType.TESTCASE_SCAN) {
+      if (
+        dto.type === MonitorType.TESTCASE_SCAN ||
+        dto.type === MonitorType.DEPLOYMENT_DISCOVERY
+      ) {
         this.scheduler.runMonitorNow(monitor.id);
       }
     }
@@ -128,6 +132,35 @@ export class MonitorsService {
     return this.createMonitor({ releaseDeploymentId }, dto, options);
   }
 
+  async createForRelease(
+    releaseId: string,
+    dto: CreateMonitorDto,
+    options?: { silent?: boolean },
+  ): Promise<MonitorDto> {
+    const release = await this.prisma.release.findUnique({ where: { id: releaseId } });
+    if (!release) {
+      throw new NotFoundException(`Release ${releaseId} not found`);
+    }
+
+    const existing = await this.prisma.monitor.findUnique({ where: { releaseId } });
+    if (existing) {
+      await this.remove(existing.id);
+    }
+
+    return this.createMonitor({ releaseId }, dto, options);
+  }
+
+  async disableAndUnschedule(id: string): Promise<void> {
+    const existing = await this.prisma.monitor.findUnique({ where: { id } });
+    if (!existing) return;
+
+    await this.scheduler.unscheduleMonitor(id);
+    await this.prisma.monitor.update({
+      where: { id },
+      data: { enabled: false, nextRunAt: null },
+    });
+  }
+
   async createForTestcaseScan(
     testcaseScanId: string,
     dto: CreateMonitorDto,
@@ -153,7 +186,7 @@ export class MonitorsService {
   async update(
     id: string,
     dto: UpdateMonitorDto,
-    options?: { silent?: boolean },
+    options?: { silent?: boolean; clearLastResult?: boolean },
   ): Promise<MonitorDto> {
     const existing = await this.prisma.monitor.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`Monitor ${id} not found`);
@@ -174,6 +207,7 @@ export class MonitorsService {
           ? (this.normalizeMonitorConfig(type, dto.config) as Prisma.InputJsonValue)
           : undefined,
         nextRunAt: enabled ? this.computeNextRun(cron) : null,
+        ...(options?.clearLastResult ? { lastResult: Prisma.DbNull } : {}),
       },
     });
 
@@ -187,6 +221,10 @@ export class MonitorsService {
       this.events.broadcast('monitor.updated', result);
     }
     return result;
+  }
+
+  runMonitorNow(monitorId: string): void {
+    this.scheduler.runMonitorNow(monitorId);
   }
 
   async remove(id: string): Promise<void> {

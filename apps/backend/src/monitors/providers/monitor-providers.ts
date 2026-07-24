@@ -4,6 +4,7 @@ import {
   MonitorType,
   type DeploymentInfo,
   type DeploymentMonitorConfig,
+  type DeploymentDiscoveryMonitorConfig,
   type HttpMonitorConfig,
   type MonitorProvider,
   type MonitorResult,
@@ -15,6 +16,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '../../config/env.validation';
 import { normalizeDeploymentMonitorConfig } from '../../common/parse-jenkins-job-url';
+import { fetchJenkinsJobLastBuild } from '../../jenkins/jenkins-last-build';
+import { parseJenkinsJobUrl } from '../../common/parse-jenkins-job-url';
 
 @Injectable()
 export class HttpMonitorProvider implements MonitorProvider {
@@ -352,5 +355,66 @@ export class TestcaseScanMonitorProvider implements MonitorProvider {
         message: `Jenkins testcase scan check failed: ${message}`,
       };
     }
+  }
+}
+
+@Injectable()
+export class DeploymentDiscoveryMonitorProvider implements MonitorProvider {
+  readonly type = MonitorType.DEPLOYMENT_DISCOVERY;
+
+  constructor(private readonly configService: ConfigService<EnvConfig, true>) {}
+
+  async check(config: unknown): Promise<MonitorResult> {
+    const cfg = config as DeploymentDiscoveryMonitorConfig;
+    if (!cfg?.releaseId || !cfg.releaseCreatedAtMs || !cfg.pendingServices?.length) {
+      return {
+        status: MonitorResultStatus.RUNNING,
+        message: 'No pending services to discover',
+        metadata: { discovered: [], errors: [] },
+      };
+    }
+
+    const auth = this.configService.get('JENKINS_AUTH', { infer: true });
+    if (!auth) {
+      return {
+        status: MonitorResultStatus.FAILED,
+        message: 'JENKINS_AUTH is not configured',
+      };
+    }
+
+    const discovered: Array<{ serviceId: string; jobUrl: string; buildNumber: number }> = [];
+    const errors: Array<{ serviceId: string; message: string }> = [];
+
+    for (const pending of cfg.pendingServices) {
+      try {
+        const lastBuild = await fetchJenkinsJobLastBuild(pending.catalogJobUrl, auth);
+        if (!lastBuild || lastBuild.timestamp <= cfg.releaseCreatedAtMs) {
+          continue;
+        }
+
+        const parsed = parseJenkinsJobUrl(lastBuild.url);
+        discovered.push({
+          serviceId: pending.serviceId,
+          jobUrl: parsed.jobUrl,
+          buildNumber: parsed.buildNumber,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        errors.push({ serviceId: pending.serviceId, message });
+      }
+    }
+
+    return {
+      status: MonitorResultStatus.RUNNING,
+      message:
+        discovered.length > 0
+          ? `Discovered ${discovered.length} staging deployment(s)`
+          : `Watching ${cfg.pendingServices.length} service(s) for staging deployments`,
+      metadata: {
+        discovered,
+        errors,
+        skippedServices: cfg.skippedServices ?? [],
+      },
+    };
   }
 }

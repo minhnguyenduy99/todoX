@@ -197,6 +197,8 @@ PATCH  /releases/:id
 DELETE /releases/:id
 ```
 
+**Staging deployment discovery:** When a staging release is created without deploy URLs for every member service, the backend starts a release-level `deployment_discovery` monitor. It polls each service's catalog **staging** Jenkins job (configured on the Services page) for a build newer than the release creation time. When a build appears, the backend attaches the release deployment monitor and todo-level staging env chips plus deployment monitors for that service's member todos — the same outcome as manually calling `update_release` and MCP `update_todo`. Discovery stops once all discoverable member services have deployments attached. Prod releases are unchanged.
+
 ### Subtasks
 
 ```

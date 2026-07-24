@@ -3,10 +3,10 @@ import {
   DEPLOYED_ENVIRONMENT_ORDER,
   DeploymentStatus,
   type DeployedEnvironmentDto,
-  type DeployedEnvironmentName,
 } from '@todo-platform/shared-types';
 import { sortDeploymentsForDisplay } from '../utils/deploymentSort';
 import {
+  todoDeployedEnvironmentChipClassName,
   formatDeploymentDuration,
   resolveDeploymentDurationMs,
 } from '../utils/deploymentDisplay';
@@ -17,32 +17,8 @@ interface DeployedEnvironmentListProps {
   layout?: 'chips' | 'lines';
 }
 
-function envChipClassName(name: DeployedEnvironmentName): string {
-  switch (name) {
-    case 'dev':
-      return 'env-chip-dev';
-    case 'uat':
-      return 'env-chip-uat';
-    case 'uat-main':
-      return 'env-chip-uat-main';
-    case 'staging':
-      return 'env-chip-staging';
-    default:
-      return 'env-chip-default';
-  }
-}
-
-function deploymentChipClassName(status: DeploymentStatus | undefined): string {
-  switch (status) {
-    case DeploymentStatus.IN_PROGRESS:
-      return 'env-chip-deploying';
-    case DeploymentStatus.SUCCESS:
-      return 'env-chip-deploy-success';
-    case DeploymentStatus.FAIL:
-      return 'env-chip-deploy-fail';
-    default:
-      return '';
-  }
+function resolveChipClassName(deployment: DeployedEnvironmentDto['deployment']): string {
+  return todoDeployedEnvironmentChipClassName(deployment);
 }
 
 function formatDuration(
@@ -166,7 +142,7 @@ export function DeployedEnvironmentList({
         {sorted.map((env) => {
           const deployment = env.deployment;
           const duration = formatDuration(deployment);
-          const rowClassName = `deployment-line env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
+          const rowClassName = `deployment-line env-chip ${resolveChipClassName(deployment)}`;
 
           return (
             <EnvChip
@@ -191,8 +167,7 @@ export function DeployedEnvironmentList({
       {sorted.map((env) => {
         const deployment = env.deployment;
         const duration = formatDuration(deployment);
-
-        const chipClassName = `env-chip ${envChipClassName(env.name)} ${deploymentChipClassName(deployment?.status)}`;
+        const chipClassName = `env-chip ${resolveChipClassName(deployment)}`;
 
         return (
           <EnvChip

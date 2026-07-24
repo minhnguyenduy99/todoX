@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { DeploymentStatus } from '@todo-platform/shared-types';
 import {
+  DeploymentStatus,
+  ReleaseDeploymentStatus,
+  ReleaseType,
+} from '@todo-platform/shared-types';
+import {
+  deploymentStatusChipClassName,
   formatDeploymentDuration,
+  releaseDeploymentStatusChipClassName,
   resolveDeploymentDurationMs,
+  resolveJenkinsBuildUrl,
+  resolveReleaseDeploymentBuildUrl,
+  todoDeployedEnvironmentChipClassName,
 } from './deploymentDisplay';
 
 describe('deploymentDisplay', () => {
@@ -31,6 +40,68 @@ describe('deploymentDisplay', () => {
     assert.equal(
       resolveDeploymentDurationMs(60_000, DeploymentStatus.IN_PROGRESS, now - 90_000, now),
       60_000,
+    );
+  });
+
+  it('maps deployment status to chip classes', () => {
+    assert.equal(
+      deploymentStatusChipClassName(DeploymentStatus.IN_PROGRESS),
+      'env-chip-status-in-progress',
+    );
+    assert.equal(
+      deploymentStatusChipClassName(DeploymentStatus.SUCCESS),
+      'env-chip-status-success',
+    );
+    assert.equal(
+      deploymentStatusChipClassName(DeploymentStatus.FAIL),
+      'env-chip-status-fail',
+    );
+  });
+
+  it('maps release deployment status to chip classes', () => {
+    assert.equal(
+      releaseDeploymentStatusChipClassName(ReleaseDeploymentStatus.IN_PROGRESS),
+      'env-chip-status-in-progress',
+    );
+    assert.equal(
+      releaseDeploymentStatusChipClassName(ReleaseDeploymentStatus.SUCCESSFUL),
+      'env-chip-status-success',
+    );
+    assert.equal(
+      releaseDeploymentStatusChipClassName(ReleaseDeploymentStatus.FAILED),
+      'env-chip-status-fail',
+    );
+  });
+
+  it('uses green for env-only todo chips', () => {
+    assert.equal(
+      todoDeployedEnvironmentChipClassName(undefined),
+      'env-chip-status-success',
+    );
+  });
+
+  it('resolves Jenkins build URLs', () => {
+    assert.equal(
+      resolveJenkinsBuildUrl(
+        'https://jenkins.example/job/my-job/',
+        42,
+      ),
+      'https://jenkins.example/job/my-job/42/',
+    );
+    assert.equal(
+      resolveReleaseDeploymentBuildUrl({
+        id: 'dep-1',
+        releaseId: 'rel-1',
+        serviceId: 'svc-1',
+        serviceKeyName: 'billing',
+        environment: ReleaseType.STAGING,
+        jobUrl: 'https://jenkins.example/job/staging',
+        buildNumber: 10,
+        status: ReleaseDeploymentStatus.SUCCESSFUL,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      'https://jenkins.example/job/staging/10/',
     );
   });
 });

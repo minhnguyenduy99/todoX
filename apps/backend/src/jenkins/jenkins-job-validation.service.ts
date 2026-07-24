@@ -7,6 +7,7 @@ import {
 import type { EnvConfig } from '../config/env.validation';
 import { normalizeJenkinsJobUrl } from '../common/normalize-jenkins-job-url';
 import { parseJobNameFromUrl } from '../monitors/providers/monitor-providers';
+import { fetchJenkinsJobLastBuild } from './jenkins-last-build';
 
 interface JenkinsLastBuildResponse {
   number?: number;
@@ -15,12 +16,6 @@ interface JenkinsLastBuildResponse {
   duration?: number;
   timestamp?: number;
   url?: string;
-}
-
-interface JenkinsJobResponse {
-  name?: string;
-  url?: string;
-  lastBuild?: JenkinsLastBuildResponse | null;
 }
 
 export interface JenkinsJobValidationResult {
@@ -44,29 +39,12 @@ export class JenkinsJobValidationService {
       return { valid: false, error: 'JENKINS_AUTH is not configured' };
     }
 
-    const apiUrl = `${normalizedJobUrl}/api/json?tree=name,url,lastBuild[number,result,building,duration,timestamp,url]`;
-
     try {
-      const response = await fetch(apiUrl, {
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!response.ok) {
-        return {
-          valid: false,
-          error: `Jenkins API returned ${response.status}`,
-        };
-      }
-
-      const job = (await response.json()) as JenkinsJobResponse;
+      const lastBuild = await fetchJenkinsJobLastBuild(normalizedJobUrl, auth);
       const preview: ServiceDeploymentValidationPreviewDto = {
-        jobName: job.name ?? parseJobNameFromUrl(normalizedJobUrl),
+        jobName: parseJobNameFromUrl(normalizedJobUrl),
         normalizedJobUrl,
-        lastBuild: mapLastBuildPreview(job.lastBuild),
+        lastBuild: lastBuild ? mapLastBuildPreview(lastBuild) : null,
       };
 
       return { valid: true, preview };
@@ -81,9 +59,9 @@ export class JenkinsJobValidationService {
 }
 
 function mapLastBuildPreview(
-  lastBuild: JenkinsLastBuildResponse | null | undefined,
+  lastBuild: JenkinsLastBuildResponse,
 ): ServiceDeploymentValidationPreviewDto['lastBuild'] {
-  if (!lastBuild || lastBuild.number === undefined) {
+  if (lastBuild.number === undefined) {
     return null;
   }
 

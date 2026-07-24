@@ -18,6 +18,7 @@ export enum MonitorType {
   HTTP = 'http',
   GITHUB_PR = 'github_pr',
   DEPLOYMENT = 'deployment',
+  DEPLOYMENT_DISCOVERY = 'deployment_discovery',
   TESTCASE_SCAN = 'testcase_scan',
 }
 
@@ -235,6 +236,7 @@ export interface MonitorDto {
   todoId: string | null;
   subtaskId: string | null;
   releaseDeploymentId: string | null;
+  releaseId: string | null;
   testcaseScanId: string | null;
   type: MonitorType;
   cron: string;
@@ -342,6 +344,25 @@ export interface DeploymentMonitorConfig {
   env: DeployedEnvironmentName | 'prod';
   jobUrl: string;
   buildNumber: number;
+  /** When true, poll results enrich deployment chips but do not mutate TodoStatus. */
+  suppressTodoStatusSync?: boolean;
+}
+
+export interface DeploymentDiscoveryPendingService {
+  serviceId: string;
+  catalogJobUrl: string;
+}
+
+export interface DeploymentDiscoverySkippedService {
+  serviceId: string;
+  reason: string;
+}
+
+export interface DeploymentDiscoveryMonitorConfig {
+  releaseId: string;
+  releaseCreatedAtMs: number;
+  pendingServices: DeploymentDiscoveryPendingService[];
+  skippedServices?: DeploymentDiscoverySkippedService[];
 }
 
 export interface TestcaseScanMonitorConfig {

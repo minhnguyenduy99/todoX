@@ -1,4 +1,5 @@
 import {
+  DeploymentDiscoveryMonitorProvider,
   DeploymentMonitorProvider,
   GitHubPrMonitorProvider,
   HttpMonitorProvider,
@@ -331,5 +332,51 @@ describe('TestcaseScanMonitorProvider', () => {
 
   it('has correct type', () => {
     expect(createProvider().type).toBe(MonitorType.TESTCASE_SCAN);
+  });
+});
+
+describe('DeploymentDiscoveryMonitorProvider', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('discovers builds newer than releaseCreatedAtMs', async () => {
+    const provider = new DeploymentDiscoveryMonitorProvider({
+      get: () => 'dXNlcjpwYXNz',
+    } as never);
+
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        lastBuild: {
+          number: 99,
+          result: 'SUCCESS',
+          building: false,
+          duration: 1000,
+          timestamp: 2_000,
+          url: 'https://jenkins.example.net/job/auth-staging/99/',
+        },
+      }),
+    } as Response);
+
+    const result = await provider.check({
+      releaseId: 'rel-1',
+      releaseCreatedAtMs: 1_000,
+      pendingServices: [
+        {
+          serviceId: 'svc-1',
+          catalogJobUrl: 'https://jenkins.example.net/job/auth-staging',
+        },
+      ],
+    });
+
+    expect(result.status).toBe(MonitorResultStatus.RUNNING);
+    expect(result.metadata?.discovered).toEqual([
+      {
+        serviceId: 'svc-1',
+        jobUrl: 'https://jenkins.example.net/job/auth-staging',
+        buildNumber: 99,
+      },
+    ]);
   });
 });
