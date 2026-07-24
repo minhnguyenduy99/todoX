@@ -2,9 +2,10 @@
 name: todox-deploy
 description: >-
   Deploy TodoX catalog services to dev, uat, or uat-main via Jenkins, validate
-  services, gate on merged dev PRs or all todo PRs for uat-main, and attach deployment monitors to
-  matching todos. Use when the user asks to deploy services to dev/uat/uat-main,
-  run todox-deploy, or trigger Jenkins deploys for TodoX todos.
+  services, gate on merged dev PRs or all todo PRs for uat-main, confirm uat-main
+  todo selection with the user, then attach deployment monitors to chosen todos.
+  Use when the user asks to deploy services to dev/uat/uat-main, run todox-deploy,
+  or trigger Jenkins deploys for TodoX todos.
 argument-hint: "[environment: dev|uat|uat-main] [service-key-names...]"
 disable-model-invocation: true
 ---
@@ -115,9 +116,30 @@ gh pr view <number> --repo <owner>/<repo> --json merged,state,baseRefName,title,
 3. **If any associated PR has `merged: false`:** stop and tell the user to merge those PRs first. Include PR number, title, and URL in the message.
 4. **When all associated PRs for the affected todos are merged:** refresh stored PR status on each todo via MCP `update_todo` (or `add_associated_pull_request` per PR) so `pullRequest.status` is `merged` and matches `gh` output.
 
+**3.3.3 — Confirm todo selection before deploy (required for `uat-main` only)**
+
+After step 3.3.2 passes, **stop and do not trigger Jenkins or attach monitors yet**.
+
+1. Print a numbered list of every candidate todo from step 3 (deduped union), including at minimum:
+   - `#` (1-based index)
+   - todo `id`
+   - `title`
+   - `service.keyName`
+   - current `status`
+   - associated PR numbers (and whether each is merged)
+2. Ask the user which todos to include in this uat-main deploy. Accept:
+   - **All** — deploy every listed todo
+   - **Subset** — todo ids, titles, or list indices (e.g. `1,3` or `todo-uuid-a,todo-uuid-b`)
+   - **None / cancel** — abort without deploying
+3. Resolve the user's reply into a **selected todo set**. If the reply is ambiguous, ask a short follow-up; do not guess.
+4. **If the selected set is empty:** stop and report that deploy was cancelled.
+5. **If the selected set is non-empty:** restrict all of step 4 to **only those todos**. Do not attach uat-main monitors or env chips to unselected todos.
+
+For `dev` and `uat`, skip this confirmation step and proceed with all todos from step 3.
+
 ### 4. Deploy services and update todos
 
-Deploy **all** input services, then attach deployment state to the todos identified in step 3.
+Deploy **all** input services, then attach deployment state to the todos selected for deploy (all todos from step 3 for `dev`/`uat`; user-confirmed subset for `uat-main`).
 
 #### 4.1 Trigger Jenkins builds
 
@@ -138,7 +160,7 @@ Trigger all services before updating todos. Reuse the same polling interval (**3
 
 #### 4.2 Update deployed environment + deployment monitor
 
-For each todo identified in step 3 that belongs to a deployed service:
+For each todo in the deploy set (step 3 for `dev`/`uat`; step 3.3.3 selection for `uat-main`) that belongs to a deployed service:
 
 1. Call MCP `add_deployed_environment` with `todoId` and `environment` (the input env).
 2. Call MCP `update_todo` to attach or replace the todo-level deployment monitor:
@@ -169,6 +191,7 @@ When finished, summarize:
 - Environment and services deployed
 - Jenkins build number and build URL per service
 - Todos updated (id, title, service, status filter used)
+- For `uat-main`: todos offered vs todos the user selected
 - PRs verified merged (dev-based PRs for `dev`; all associated PRs for `uat-main`)
 - Any todos skipped and why
 
@@ -180,6 +203,8 @@ When finished, summarize:
 | Missing catalog `jobUrl` for environment | Stop at step 2 |
 | Dev PR with `baseRefName=dev` not merged | Stop at step 3.1.2 |
 | Any associated PR on uat-main todos not merged | Stop at step 3.3.2 |
+| User cancels uat-main todo selection or selects none | Stop at step 3.3.3 |
+| Ambiguous uat-main selection | Ask follow-up at step 3.3.3; do not deploy until resolved |
 | Jenkins trigger or build resolution failure | Stop at step 4.1 |
 | MCP / `gh` / Jenkins auth errors | Stop and report the failing command |
 
@@ -207,4 +232,4 @@ Expected: validate → resolve job URL → list `IN_PROGRESS` todos for `flo-api
 /todox-deploy uat-main billing-api
 ```
 
-Expected: validate → resolve job URLs → list `TESTING` todos → verify every associated PR via `gh` (regardless of base branch) → trigger Jenkins → attach `uat-main` env chips + deployment monitors.
+Expected: validate → resolve job URLs → list `TESTING` todos → verify every associated PR via `gh` (regardless of base branch) → **print todo list and wait for user selection** → trigger Jenkins → attach `uat-main` env chips + deployment monitors **only to selected todos**.

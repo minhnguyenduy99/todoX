@@ -130,6 +130,19 @@ gh pr view 123 --repo my-org/my-repo \
 
 If any gated PR has `merged: false`, stop and list open PRs (number, title, URL).
 
+## uat-main: confirm todos before deploy
+
+After all PRs pass for `uat-main`, **pause before Jenkins or MCP deploy updates**.
+
+1. Show every candidate todo (from `list_todos` union across input services) in a numbered table or list with: index, `id`, `title`, `service.keyName`, `status`, merged PR numbers.
+2. Ask the user which todos to deploy. Valid replies:
+   - `all` — every candidate
+   - subset by 1-based index (`1,3`), todo id, or title
+   - cancel / none — abort
+3. Step 4 (`add_deployed_environment`, `update_todo` monitor) runs **only for the selected todos**. Unselected todos must not receive uat-main env chips or deployment monitors in this run.
+
+This prevents every `TESTING` todo on a service from receiving the same Jenkins build monitor and auto-transitioning to `WAIT_FOR_STAGING` when the user only intended one todo.
+
 **Update TodoX PR status** after verification:
 
 ```json
