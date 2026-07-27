@@ -121,7 +121,7 @@ describe('collectTodayServiceDeployments', () => {
     assert.equal(collectTodayServiceDeployments(todos, now).length, 0);
   });
 
-  it('keeps only the latest deployment per service for today', () => {
+  it('keeps both dev and uat deployments for the same service today', () => {
     const todos = [
       baseTodo({
         service: baseService(),
@@ -155,9 +155,11 @@ describe('collectTodayServiceDeployments', () => {
     ];
 
     const rows = collectTodayServiceDeployments(todos, now);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]?.buildNumber, 42);
-    assert.equal(rows[0]?.environment, DeployedEnvironmentName.UAT);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(
+      rows.map((row) => row.environment).sort(),
+      [DeployedEnvironmentName.DEV, DeployedEnvironmentName.UAT],
+    );
   });
 
   it('returns one row per service', () => {

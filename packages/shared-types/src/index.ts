@@ -211,7 +211,9 @@ export interface TodoDto {
   createdAt: string;
   updatedAt: string;
   service?: ServiceDto | null;
+  /** @deprecated Use monitors; kept as the most recently polled deployment monitor. */
   monitor?: MonitorDto | null;
+  monitors?: MonitorDto[];
   subtasks?: SubtaskDto[];
   pullRequests?: AssociatedPullRequestDto[];
   deployedEnvironments?: DeployedEnvironmentDto[];
@@ -226,7 +228,9 @@ export interface SubtaskDto {
   status: SubtaskStatus;
   createdAt: string;
   updatedAt: string;
+  /** @deprecated Use monitors; kept as the most recently polled deployment monitor. */
   monitor?: MonitorDto | null;
+  monitors?: MonitorDto[];
   pullRequests?: AssociatedPullRequestDto[];
   deployedEnvironments?: DeployedEnvironmentDto[];
 }

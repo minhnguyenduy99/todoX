@@ -7,11 +7,11 @@ import { toTestcaseScanDto, toTodoDto } from '../common/mappers';
 import { createTestcaseScanRecord } from '../common/sync-testcase-scans';
 
 const todoInclude = {
-  monitor: true,
+  monitors: true,
   service: true,
   subtasks: {
     include: {
-      monitor: true,
+      monitors: true,
       pullRequests: { orderBy: { number: 'asc' as const } },
       deployedEnvironments: { orderBy: { name: 'asc' as const } },
     },

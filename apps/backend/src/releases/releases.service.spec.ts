@@ -40,6 +40,7 @@ describe('ReleasesService', () => {
     };
     monitor: {
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       update: jest.Mock;
     };
     todo: {
@@ -56,6 +57,7 @@ describe('ReleasesService', () => {
     createForReleaseDeployment: jest.Mock;
     update: jest.Mock;
     createForTodo: jest.Mock;
+    upsertForTodo: jest.Mock;
   };
 
   const serviceA = {
@@ -129,6 +131,7 @@ describe('ReleasesService', () => {
       },
       monitor: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       todo: {
@@ -145,6 +148,7 @@ describe('ReleasesService', () => {
       createForReleaseDeployment: jest.fn(),
       update: jest.fn(),
       createForTodo: jest.fn(),
+      upsertForTodo: jest.fn(),
     };
     const releaseDeploymentDiscovery = {
       maybeStartDiscoveryMonitor: jest.fn(),
@@ -467,7 +471,7 @@ describe('ReleasesService', () => {
         lastRunAt: new Date('2026-07-24T08:35:00Z'),
       },
     });
-    prisma.monitor.findUnique.mockResolvedValue({ id: 'mon-todo-a' });
+    prisma.monitor.findFirst.mockResolvedValue({ id: 'mon-todo-a' });
     prisma.monitor.update.mockResolvedValue({});
     prisma.todo.updateMany.mockResolvedValue({ count: 1 });
     prisma.todo.findMany.mockResolvedValue([

@@ -464,8 +464,8 @@ export class ReleasesService {
     for (const member of members) {
       if (member.todo.serviceId !== deployment.serviceId) continue;
 
-      const todoMonitor = await this.prisma.monitor.findUnique({
-        where: { todoId: member.todoId },
+      const todoMonitor = await this.prisma.monitor.findFirst({
+        where: { todoId: member.todoId, envKey: 'staging' },
       });
       if (!todoMonitor) continue;
 
@@ -828,22 +828,10 @@ export class ReleasesService {
         DeployedEnvironmentName.STAGING,
       );
 
-      const existingMonitor = await this.prisma.monitor.findUnique({
-        where: { todoId: member.todoId },
+      await this.monitorsService.upsertForTodo(member.todoId, monitorPayload, {
+        silent: true,
+        clearLastResult: true,
       });
-
-      if (existingMonitor) {
-        await this.monitorsService.update(existingMonitor.id, monitorPayload, {
-          silent: true,
-          clearLastResult: true,
-        });
-      } else {
-        await this.monitorsService.createForTodo(
-          member.todoId,
-          monitorPayload,
-          { silent: true },
-        );
-      }
 
       touchedTodoIds.push(member.todoId);
     }
@@ -856,11 +844,11 @@ export class ReleasesService {
     const todos = await this.prisma.todo.findMany({
       where: { id: { in: todoIds } },
       include: {
-        monitor: true,
+        monitors: true,
         service: true,
         subtasks: {
           include: {
-            monitor: true,
+            monitors: true,
             pullRequests: true,
             deployedEnvironments: true,
           },

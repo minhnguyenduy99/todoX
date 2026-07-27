@@ -10,9 +10,10 @@ import type {
   SubtaskDto,
   UpdateSubtaskDto,
 } from '@todo-platform/shared-types';
+import { MonitorType } from '@todo-platform/shared-types';
 
 const subtaskInclude = {
-  monitor: true,
+  monitors: true,
   pullRequests: {
     orderBy: { number: 'asc' as const },
   },
@@ -77,28 +78,30 @@ export class SubtasksService {
     });
 
     if (monitor) {
-      const existing = await this.prisma.monitor.findUnique({
-        where: { subtaskId },
-      });
-
-      if (existing) {
-        await this.monitorsService.update(existing.id, monitor, { silent: true });
+      if (monitor.type === MonitorType.DEPLOYMENT) {
+        await this.monitorsService.upsertForSubtask(subtaskId, monitor, {
+          silent: true,
+        });
       } else {
-        if (!monitor.type || !monitor.cron || !monitor.config) {
-          throw new BadRequestException(
-            'Subtask has no monitor; provide type, cron, and config to create one',
-          );
-        }
-        await this.monitorsService.create(
-          subtaskId,
-          {
+        const existing = await this.prisma.monitor.findFirst({
+          where: { subtaskId, envKey: monitor.type },
+        });
+
+        if (existing) {
+          await this.monitorsService.update(existing.id, monitor, { silent: true });
+        } else {
+          if (!monitor.type || !monitor.cron || !monitor.config) {
+            throw new BadRequestException(
+              'Subtask has no monitor; provide type, cron, and config to create one',
+            );
+          }
+          await this.monitorsService.create(subtaskId, {
             type: monitor.type,
             cron: monitor.cron,
             enabled: monitor.enabled,
             config: monitor.config,
-          },
-          { silent: true },
-        );
+          }, { silent: true });
+        }
       }
     }
 

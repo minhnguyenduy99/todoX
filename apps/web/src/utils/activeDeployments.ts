@@ -20,6 +20,13 @@ export type ActiveDeploymentRow = {
   deploymentTimeMs: number;
 };
 
+export type ServiceDeploymentGroup = {
+  serviceKey: string;
+  serviceLabel: string;
+  deployments: ActiveDeploymentRow[];
+  maxSortKey: number;
+};
+
 function serviceLabelForTodo(todo: TodoDto): string {
   return todo.service?.displayName ?? 'Unassigned';
 }
@@ -69,7 +76,7 @@ function rowFromEnv(todo: TodoDto, env: DeployedEnvironmentDto): ActiveDeploymen
   const serviceKey = serviceKeyForTodo(todo);
 
   return {
-    id: serviceKey,
+    id: `${serviceKey}:${env.name}`,
     serviceKey,
     serviceLabel: serviceLabelForTodo(todo),
     environment: env.name,
@@ -83,13 +90,14 @@ function rowFromEnv(todo: TodoDto, env: DeployedEnvironmentDto): ActiveDeploymen
   };
 }
 
-function upsertLatestByService(
-  rowsByService: Map<string, ActiveDeploymentRow>,
+function upsertLatestByServiceEnv(
+  rowsByServiceEnv: Map<string, ActiveDeploymentRow>,
   row: ActiveDeploymentRow,
 ): void {
-  const existing = rowsByService.get(row.serviceKey);
+  const key = `${row.serviceKey}:${row.environment}`;
+  const existing = rowsByServiceEnv.get(key);
   if (!existing || row.sortKey > existing.sortKey) {
-    rowsByService.set(row.serviceKey, row);
+    rowsByServiceEnv.set(key, row);
   }
 }
 
@@ -97,13 +105,13 @@ export function collectTodayServiceDeployments(
   todos: TodoDto[],
   nowMs: number = Date.now(),
 ): ActiveDeploymentRow[] {
-  const rowsByService = new Map<string, ActiveDeploymentRow>();
+  const rowsByServiceEnv = new Map<string, ActiveDeploymentRow>();
 
   for (const todo of todos) {
     for (const env of todo.deployedEnvironments ?? []) {
       const row = rowFromEnv(todo, env);
       if (row && isDeploymentToday(row.deploymentTimeMs, nowMs)) {
-        upsertLatestByService(rowsByService, row);
+        upsertLatestByServiceEnv(rowsByServiceEnv, row);
       }
     }
 
@@ -111,13 +119,42 @@ export function collectTodayServiceDeployments(
       for (const env of subtask.deployedEnvironments ?? []) {
         const row = rowFromEnv(todo, env);
         if (row && isDeploymentToday(row.deploymentTimeMs, nowMs)) {
-          upsertLatestByService(rowsByService, row);
+          upsertLatestByServiceEnv(rowsByServiceEnv, row);
         }
       }
     }
   }
 
-  return [...rowsByService.values()].sort((a, b) => b.sortKey - a.sortKey);
+  return [...rowsByServiceEnv.values()].sort((a, b) => b.sortKey - a.sortKey);
+}
+
+export function groupTodayDeploymentsByService(
+  rows: ActiveDeploymentRow[],
+): ServiceDeploymentGroup[] {
+  const groups = new Map<string, ServiceDeploymentGroup>();
+
+  for (const row of rows) {
+    const existing = groups.get(row.serviceKey);
+    if (!existing) {
+      groups.set(row.serviceKey, {
+        serviceKey: row.serviceKey,
+        serviceLabel: row.serviceLabel,
+        deployments: [row],
+        maxSortKey: row.sortKey,
+      });
+      continue;
+    }
+
+    existing.deployments.push(row);
+    existing.maxSortKey = Math.max(existing.maxSortKey, row.sortKey);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      deployments: [...group.deployments].sort((a, b) => b.sortKey - a.sortKey),
+    }))
+    .sort((a, b) => b.maxSortKey - a.maxSortKey);
 }
 
 /** @deprecated Use collectTodayServiceDeployments */

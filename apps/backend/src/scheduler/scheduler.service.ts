@@ -312,10 +312,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     const todo = await this.prisma.todo.findUnique({
       where: { id: todoId },
       include: {
-        monitor: true,
+        monitors: true,
         subtasks: {
           include: {
-            monitor: true,
+            monitors: true,
         pullRequests: { orderBy: { number: 'asc' } },
         deployedEnvironments: { orderBy: { name: 'asc' } },
       },
@@ -350,7 +350,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     const subtask = await this.prisma.subtask.update({
       where: { id: subtaskId },
       data: { status },
-      include: { monitor: true },
+      include: { monitors: true },
     });
 
     this.events.broadcast('subtask.updated', toSubtaskDto(subtask));

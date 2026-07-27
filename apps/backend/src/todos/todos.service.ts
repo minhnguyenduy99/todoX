@@ -35,7 +35,7 @@ const testcaseScanInclude = {
 
 const subtaskInclude = {
   include: {
-    monitor: true,
+    monitors: true,
     pullRequests: pullRequestInclude,
     deployedEnvironments: deployedEnvironmentInclude,
   },
@@ -43,7 +43,7 @@ const subtaskInclude = {
 };
 
 const todoInclude = {
-  monitor: true,
+  monitors: true,
   service: true,
   subtasks: subtaskInclude,
   pullRequests: pullRequestInclude,
@@ -183,29 +183,7 @@ export class TodosService {
     });
 
     if (monitor) {
-      const existing = await this.prisma.monitor.findUnique({
-        where: { todoId: id },
-      });
-
-      if (existing) {
-        await this.monitorsService.update(existing.id, monitor, { silent: true });
-      } else {
-        if (!monitor.type || !monitor.cron || !monitor.config) {
-          throw new BadRequestException(
-            'Todo has no monitor; provide type, cron, and config to create one',
-          );
-        }
-        await this.monitorsService.createForTodo(
-          id,
-          {
-            type: monitor.type,
-            cron: monitor.cron,
-            enabled: monitor.enabled,
-            config: monitor.config,
-          },
-          { silent: true },
-        );
-      }
+      await this.monitorsService.upsertForTodo(id, monitor, { silent: true });
     }
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);

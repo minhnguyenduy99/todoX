@@ -150,26 +150,41 @@ export function toDeployedEnvironmentDto(
   };
 }
 
+function pickPrimaryDeploymentMonitor(monitors: Monitor[]): Monitor | null {
+  const deploymentMonitors = monitors.filter(
+    (monitor) => monitor.type === MonitorType.DEPLOYMENT,
+  );
+  if (deploymentMonitors.length === 0) return null;
+
+  return deploymentMonitors.reduce<Monitor | null>((latest, current) => {
+    if (!latest) return current;
+    const latestRun = latest.lastRunAt?.getTime() ?? 0;
+    const currentRun = current.lastRunAt?.getTime() ?? 0;
+    return currentRun >= latestRun ? current : latest;
+  }, null);
+}
+
 function enrichSubtaskDeployedEnvironments(
   environments: DeployedEnvironment[] | undefined,
-  monitor: Monitor | null | undefined,
+  monitors: Monitor[] | undefined,
 ): DeployedEnvironmentDto[] | undefined {
   if (!environments) return undefined;
-  const monitorDto = monitor ? toMonitorDto(monitor) : null;
-  const monitors = collectDeploymentMonitors([monitorDto]);
-  return enrichDeployedEnvironments(environments, monitors, toDeployedEnvironmentDto);
+  const monitorDtos = collectDeploymentMonitors(
+    (monitors ?? []).map((monitor) => toMonitorDto(monitor)),
+  );
+  return enrichDeployedEnvironments(environments, monitorDtos, toDeployedEnvironmentDto);
 }
 
 function enrichTodoDeployedEnvironments(
   environments: DeployedEnvironment[] | undefined,
-  subtasks: Array<Subtask & { monitor?: Monitor | null }> | undefined,
-  todoMonitor?: Monitor | null,
+  subtasks: Array<Subtask & { monitors?: Monitor[] }> | undefined,
+  todoMonitors: Monitor[] | undefined,
 ): DeployedEnvironmentDto[] | undefined {
   if (!environments) return undefined;
   const monitors = collectDeploymentMonitors([
-    todoMonitor ? toMonitorDto(todoMonitor) : null,
-    ...(subtasks ?? []).map((subtask) =>
-      subtask.monitor ? toMonitorDto(subtask.monitor) : null,
+    ...(todoMonitors ?? []).map((monitor) => toMonitorDto(monitor)),
+    ...(subtasks ?? []).flatMap((subtask) =>
+      (subtask.monitors ?? []).map((monitor) => toMonitorDto(monitor)),
     ),
   ]);
   return enrichDeployedEnvironments(environments, monitors, toDeployedEnvironmentDto);
@@ -189,11 +204,15 @@ export function toTestcaseScanDto(scan: TestcaseScan): TestcaseScanDto {
 
 export function toSubtaskDto(
   subtask: Subtask & {
-    monitor?: Monitor | null;
+    monitors?: Monitor[];
     pullRequests?: AssociatedPullRequest[];
     deployedEnvironments?: DeployedEnvironment[];
   },
 ): SubtaskDto {
+  const monitors = subtask.monitors ?? [];
+  const monitorDtos = monitors.map(toMonitorDto);
+  const primaryMonitor = pickPrimaryDeploymentMonitor(monitors);
+
   return {
     id: subtask.id,
     todoId: subtask.todoId,
@@ -201,21 +220,22 @@ export function toSubtaskDto(
     status: subtask.status as SubtaskStatus,
     createdAt: subtask.createdAt.toISOString(),
     updatedAt: subtask.updatedAt.toISOString(),
-    monitor: subtask.monitor ? toMonitorDto(subtask.monitor) : null,
+    monitors: monitorDtos,
+    monitor: primaryMonitor ? toMonitorDto(primaryMonitor) : null,
     pullRequests: subtask.pullRequests?.map(toAssociatedPullRequestDto),
     deployedEnvironments: enrichSubtaskDeployedEnvironments(
       subtask.deployedEnvironments,
-      subtask.monitor,
+      monitors,
     ),
   };
 }
 
 export function toTodoDto(
   todo: Todo & {
-    monitor?: Monitor | null;
+    monitors?: Monitor[];
     service?: Service | null;
     subtasks?: (Subtask & {
-      monitor?: Monitor | null;
+      monitors?: Monitor[];
       pullRequests?: AssociatedPullRequest[];
       deployedEnvironments?: DeployedEnvironment[];
     })[];
@@ -229,6 +249,10 @@ export function toTodoDto(
     ?.map(toTestcaseScanDto)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
+  const todoMonitors = todo.monitors ?? [];
+  const monitorDtos = todoMonitors.map(toMonitorDto);
+  const primaryMonitor = pickPrimaryDeploymentMonitor(todoMonitors);
+
   return {
     id: todo.id,
     title: todo.title,
@@ -238,14 +262,15 @@ export function toTodoDto(
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
     service: todo.service ? toServiceDto(todo.service) : null,
-    monitor: todo.monitor ? toMonitorDto(todo.monitor) : null,
+    monitors: monitorDtos,
+    monitor: primaryMonitor ? toMonitorDto(primaryMonitor) : null,
     subtasks: todo.subtasks?.map(toSubtaskDto),
     pullRequests: todo.pullRequests?.map(toAssociatedPullRequestDto),
     associatedTickets: todo.associatedTickets?.map(toAssociatedTicketDto),
     deployedEnvironments: enrichTodoDeployedEnvironments(
       todo.deployedEnvironments,
       todo.subtasks,
-      todo.monitor,
+      todoMonitors,
     ),
     testcaseScanHistory,
   };

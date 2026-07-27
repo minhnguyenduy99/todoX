@@ -81,7 +81,7 @@ model Todo {
   service               Service?                @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   releaseMemberships    ReleaseMember[]
   subtasks              Subtask[]
-  monitor               Monitor?
+  monitors              Monitor[]
   pullRequests          AssociatedPullRequest[]
   associatedTickets     AssociatedTicket[]
   deployedEnvironments  DeployedEnvironment[]
@@ -114,7 +114,7 @@ model Subtask {
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
   todo         Todo                    @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  monitor              Monitor?
+  monitors             Monitor[]
   pullRequests         AssociatedPullRequest[]
   deployedEnvironments DeployedEnvironment[]
 
@@ -173,11 +173,12 @@ model DeployedEnvironment {
 
 model Monitor {
   id                  String             @id @default(uuid())
-  todoId              String?            @unique
-  subtaskId           String?            @unique
+  todoId              String?
+  subtaskId           String?
   releaseDeploymentId String?            @unique @map("release_deployment_id")
   releaseId           String?            @unique @map("release_id")
   testcaseScanId      String?            @unique @map("testcase_scan_id")
+  envKey              String?            @map("env_key")
   type                MonitorType
   cron                String
   enabled             Boolean            @default(true)
@@ -193,6 +194,10 @@ model Monitor {
   release             Release?           @relation(fields: [releaseId], references: [id], onDelete: Cascade)
   testcaseScan        TestcaseScan?      @relation(fields: [testcaseScanId], references: [id], onDelete: Cascade)
 
+  @@unique([todoId, envKey])
+  @@unique([subtaskId, envKey])
+  @@index([todoId])
+  @@index([subtaskId])
   @@map("monitors")
 }
 

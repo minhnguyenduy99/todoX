@@ -79,7 +79,8 @@ const testcaseScanSchema = {
 
 const monitorInputSchema = {
   type: 'object' as const,
-  description: 'Optional monitor configuration',
+  description:
+    'Optional monitor configuration. Deployment monitors upsert by config.env — attaching uat does not replace an existing dev monitor.',
   properties: {
     type: { type: 'string', enum: Object.values(MonitorType) },
     cron: {

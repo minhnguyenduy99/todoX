@@ -179,6 +179,60 @@ describe('deployment-enrichment', () => {
       );
       expect(result[0].deployment?.buildNumber).toBe(99);
     });
+
+    it('enriches dev and uat chips from separate todo monitors', () => {
+      const devEnv: DeployedEnvironment = { ...baseEnv, id: 'env-dev', name: 'dev' };
+      const uatEnv: DeployedEnvironment = { ...baseEnv, id: 'env-uat', name: 'uat' };
+      const toDto = (env: DeployedEnvironment) => ({
+        id: env.id,
+        name:
+          env.name === 'uat'
+            ? DeployedEnvironmentName.UAT
+            : DeployedEnvironmentName.DEV,
+        createdAt: env.createdAt.toISOString(),
+        updatedAt: env.updatedAt.toISOString(),
+      });
+
+      const devMonitor = makeMonitor({
+        id: 'mon-dev',
+        todoId: 'todo-1',
+        subtaskId: null,
+        config: { env: 'dev', jobUrl: 'https://jenkins/job/dev', buildNumber: 10 },
+        lastResult: {
+          status: MonitorResultStatus.RUNNING,
+          message: 'dev',
+          metadata: {
+            deployment: { ...deployment, env: DeployedEnvironmentName.DEV, buildNumber: 10 },
+          },
+        },
+      });
+      const uatMonitor = makeMonitor({
+        id: 'mon-uat',
+        todoId: 'todo-1',
+        subtaskId: null,
+        config: { env: 'uat', jobUrl: 'https://jenkins/job/uat', buildNumber: 20 },
+        lastResult: {
+          status: MonitorResultStatus.RUNNING,
+          message: 'uat',
+          metadata: {
+            deployment: {
+              ...deployment,
+              env: DeployedEnvironmentName.UAT,
+              buildNumber: 20,
+            },
+          },
+        },
+      });
+
+      const result = enrichDeployedEnvironments(
+        [devEnv, uatEnv],
+        [devMonitor, uatMonitor],
+        toDto,
+      );
+
+      expect(result.find((env) => env.name === DeployedEnvironmentName.DEV)?.deployment?.buildNumber).toBe(10);
+      expect(result.find((env) => env.name === DeployedEnvironmentName.UAT)?.deployment?.buildNumber).toBe(20);
+    });
   });
 
   describe('collectDeploymentMonitors', () => {

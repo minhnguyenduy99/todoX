@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TodoDto } from '@todo-platform/shared-types';
 import { DeploymentStatus } from '@todo-platform/shared-types';
-import { collectTodayServiceDeployments } from '../utils/activeDeployments';
+import {
+  collectTodayServiceDeployments,
+  groupTodayDeploymentsByService,
+  type ActiveDeploymentRow,
+} from '../utils/activeDeployments';
 import {
   deploymentStatusChipClassName,
   formatDeploymentDuration,
@@ -12,8 +16,7 @@ interface ActiveDeploymentsPanelProps {
   todos: TodoDto[];
 }
 
-function DeploymentRow({
-  serviceLabel,
+function DeploymentChip({
   environment,
   status,
   buildNumber,
@@ -22,7 +25,6 @@ function DeploymentRow({
   buildUrl,
   nowMs,
 }: {
-  serviceLabel: string;
   environment: string;
   status: DeploymentStatus;
   buildNumber: number;
@@ -34,10 +36,7 @@ function DeploymentRow({
   const resolvedDurationMs = resolveDeploymentDurationMs(durationMs, status, timestamp, nowMs);
   const duration = formatDeploymentDuration(resolvedDurationMs);
   const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip`;
-  const titleParts = [
-    `${serviceLabel} · ${environment}`,
-    `Build #${buildNumber}`,
-  ];
+  const titleParts = [environment, `Build #${buildNumber}`];
   if (duration) titleParts.push(duration);
   if (buildUrl) titleParts.push(buildUrl);
   const title = titleParts.join(' · ');
@@ -59,59 +58,89 @@ function DeploymentRow({
     </>
   );
 
+  if (buildUrl) {
+    return (
+      <a
+        className={chipClassName}
+        href={buildUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={title}
+      >
+        {chipContent}
+      </a>
+    );
+  }
+
+  return (
+    <span className={chipClassName} title={title}>
+      {chipContent}
+    </span>
+  );
+}
+
+function ServiceDeploymentRow({
+  serviceLabel,
+  deployments,
+  nowMs,
+}: {
+  serviceLabel: string;
+  deployments: ActiveDeploymentRow[];
+  nowMs: number;
+}) {
   return (
     <div className="deployment-active-row">
       <span className="deployment-active-service">{serviceLabel}</span>
-      {buildUrl ? (
-        <a
-          className={chipClassName}
-          href={buildUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={title}
-        >
-          {chipContent}
-        </a>
-      ) : (
-        <span className={chipClassName} title={title}>
-          {chipContent}
-        </span>
-      )}
+      <div className="deployment-active-chips">
+        {deployments.map((deployment) => (
+          <DeploymentChip
+            key={deployment.id}
+            environment={deployment.environment}
+            status={deployment.status}
+            buildNumber={deployment.buildNumber}
+            durationMs={deployment.durationMs}
+            timestamp={deployment.timestamp}
+            buildUrl={deployment.buildUrl}
+            nowMs={nowMs}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 export function ActiveDeploymentsPanel({ todos }: ActiveDeploymentsPanelProps) {
-  const rows = useMemo(() => collectTodayServiceDeployments(todos), [todos]);
+  const groups = useMemo(() => {
+    const rows = collectTodayServiceDeployments(todos);
+    return groupTodayDeploymentsByService(rows);
+  }, [todos]);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!rows.some((row) => row.status === DeploymentStatus.IN_PROGRESS)) return;
+    const hasInProgress = groups.some((group) =>
+      group.deployments.some((row) => row.status === DeploymentStatus.IN_PROGRESS),
+    );
+    if (!hasInProgress) return;
 
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
-  }, [rows]);
+  }, [groups]);
 
   return (
     <div className="deployments-panel">
       <h2 className="deployments-panel-title">Today&apos;s Deployments</h2>
 
-      {rows.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="deployments-panel-empty">
           <p>No deployments today</p>
         </div>
       ) : (
         <div className="deployments-active-list">
-          {rows.map((row) => (
-            <DeploymentRow
-              key={row.id}
-              serviceLabel={row.serviceLabel}
-              environment={row.environment}
-              status={row.status}
-              buildNumber={row.buildNumber}
-              durationMs={row.durationMs}
-              timestamp={row.timestamp}
-              buildUrl={row.buildUrl}
+          {groups.map((group) => (
+            <ServiceDeploymentRow
+              key={group.serviceKey}
+              serviceLabel={group.serviceLabel}
+              deployments={group.deployments}
               nowMs={nowMs}
             />
           ))}

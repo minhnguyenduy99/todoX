@@ -30,6 +30,7 @@ describe('TodosService', () => {
   let events: { broadcast: jest.Mock };
   let monitorsService: {
     createForTodo: jest.Mock;
+    upsertForTodo: jest.Mock;
     update: jest.Mock;
   };
   let releasesService: {
@@ -44,6 +45,7 @@ describe('TodosService', () => {
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     monitor: null,
+    monitors: [],
     subtasks: [],
     pullRequests: [],
     deployedEnvironments: [],
@@ -71,6 +73,7 @@ describe('TodosService', () => {
     events = { broadcast: jest.fn() };
     monitorsService = {
       createForTodo: jest.fn(),
+      upsertForTodo: jest.fn(),
       update: jest.fn(),
     };
     releasesService = {

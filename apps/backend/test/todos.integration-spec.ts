@@ -478,7 +478,60 @@ describe('Todos API (integration)', () => {
         cron: '*/5 * * * *',
         config: { env: 'uat', jobUrl: 'https://jenkins.example.net/job/uat-job', buildNumber: 51 },
       })
-      .expect(409);
+      .expect(201);
+
+    const monitors = await prisma.monitor.findMany({
+      where: { todoId: todoRes.body.id },
+    });
+    expect(monitors).toHaveLength(1);
+    expect((monitors[0]?.config as { buildNumber: number }).buildNumber).toBe(51);
+  });
+
+  it('PATCH /todos/:id keeps dev monitor when adding uat monitor', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Multi-env deploy todo',
+        deployedEnvironments: ['dev', 'uat'],
+        monitor: {
+          type: 'deployment',
+          cron: '*/5 * * * *',
+          config: {
+            env: 'dev',
+            jobUrl: 'https://jenkins.example.net/job/dev-job',
+            buildNumber: 10,
+          },
+        },
+      })
+      .expect(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/todos/${todoRes.body.id}`)
+      .send({
+        monitor: {
+          type: 'deployment',
+          cron: '*/5 * * * *',
+          config: {
+            env: 'uat',
+            jobUrl: 'https://jenkins.example.net/job/uat-job',
+            buildNumber: 20,
+          },
+        },
+      })
+      .expect(200);
+
+    expect(updateRes.body.monitors).toHaveLength(2);
+    expect(updateRes.body.monitors.map((m: { config: { env: string } }) => m.config.env).sort()).toEqual([
+      'dev',
+      'uat',
+    ]);
+
+    const monitors = await prisma.monitor.findMany({
+      where: { todoId: todoRes.body.id },
+      orderBy: { envKey: 'asc' },
+    });
+    expect(monitors).toHaveLength(2);
+    expect(monitors.map((m) => m.envKey)).toEqual(['dev', 'uat']);
   });
 
   it('PATCH /todos/:id adds a deployment monitor to an existing todo', async () => {

@@ -1242,6 +1242,13 @@ a.env-chip:hover {
   text-align: left;
 }
 
+.deployment-active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  width: 100%;
+}
+
 .deployment-active-chip {
   max-width: 100%;
 }

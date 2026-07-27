@@ -1,8 +1,16 @@
-import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { toMonitorDto } from '../common/mappers';
+import { resolveMonitorEnvKey } from '../common/monitor-env-key';
 import type {
   CreateMonitorDto,
   DeploymentMonitorConfig,
@@ -36,6 +44,16 @@ export class MonitorsService {
     return toMonitorDto(monitor);
   }
 
+  async findDeploymentMonitorForTodo(
+    todoId: string,
+    envKey: string,
+  ): Promise<MonitorDto | null> {
+    const monitor = await this.prisma.monitor.findFirst({
+      where: { todoId, envKey },
+    });
+    return monitor ? toMonitorDto(monitor) : null;
+  }
+
   async create(
     subtaskId: string,
     dto: CreateMonitorDto,
@@ -44,12 +62,21 @@ export class MonitorsService {
     const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId } });
     if (!subtask) throw new NotFoundException(`Subtask ${subtaskId} not found`);
 
-    const existing = await this.prisma.monitor.findUnique({ where: { subtaskId } });
-    if (existing) {
-      throw new ConflictException(`Subtask ${subtaskId} already has a monitor`);
+    if (dto.type === MonitorType.DEPLOYMENT) {
+      return this.upsertForSubtask(subtaskId, dto, options);
     }
 
-    return this.createMonitor({ subtaskId }, dto, options);
+    const envKey = this.requireEnvKey(dto.type, dto.config);
+    const existing = await this.prisma.monitor.findFirst({
+      where: { subtaskId, envKey },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Subtask ${subtaskId} already has a ${dto.type} monitor`,
+      );
+    }
+
+    return this.createMonitor({ subtaskId }, dto, envKey, options);
   }
 
   async createForTodo(
@@ -57,15 +84,64 @@ export class MonitorsService {
     dto: CreateMonitorDto,
     options?: { silent?: boolean },
   ): Promise<MonitorDto> {
+    return this.upsertForTodo(todoId, dto, options);
+  }
+
+  async upsertForTodo(
+    todoId: string,
+    dto: CreateMonitorDto | UpdateMonitorDto,
+    options?: { silent?: boolean; clearLastResult?: boolean },
+  ): Promise<MonitorDto> {
     const todo = await this.prisma.todo.findUnique({ where: { id: todoId } });
     if (!todo) throw new NotFoundException(`Todo ${todoId} not found`);
 
-    const existing = await this.prisma.monitor.findUnique({ where: { todoId } });
+    const envKey = this.requireEnvKey(dto.type, dto.config);
+    const existing = await this.prisma.monitor.findFirst({
+      where: { todoId, envKey },
+    });
+
     if (existing) {
-      throw new ConflictException(`Todo ${todoId} already has a monitor`);
+      return this.update(existing.id, dto, options);
     }
 
-    return this.createMonitor({ todoId }, dto, options);
+    if (!dto.type || !dto.cron || !dto.config) {
+      throw new BadRequestException(
+        'Provide type, cron, and config to create a monitor',
+      );
+    }
+
+    return this.createMonitor({ todoId }, dto as CreateMonitorDto, envKey, options);
+  }
+
+  async upsertForSubtask(
+    subtaskId: string,
+    dto: CreateMonitorDto | UpdateMonitorDto,
+    options?: { silent?: boolean; clearLastResult?: boolean },
+  ): Promise<MonitorDto> {
+    const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId } });
+    if (!subtask) throw new NotFoundException(`Subtask ${subtaskId} not found`);
+
+    const envKey = this.requireEnvKey(dto.type, dto.config);
+    const existing = await this.prisma.monitor.findFirst({
+      where: { subtaskId, envKey },
+    });
+
+    if (existing) {
+      return this.update(existing.id, dto, options);
+    }
+
+    if (!dto.type || !dto.cron || !dto.config) {
+      throw new BadRequestException(
+        'Provide type, cron, and config to create a monitor',
+      );
+    }
+
+    return this.createMonitor(
+      { subtaskId },
+      dto as CreateMonitorDto,
+      envKey,
+      options,
+    );
   }
 
   private async createMonitor(
@@ -76,6 +152,7 @@ export class MonitorsService {
       | { releaseId: string }
       | { testcaseScanId: string },
     dto: CreateMonitorDto,
+    envKey: string | null,
     options?: { silent?: boolean },
   ): Promise<MonitorDto> {
     this.validateCron(dto.cron);
@@ -85,6 +162,7 @@ export class MonitorsService {
     const monitor = await this.prisma.monitor.create({
       data: {
         ...owner,
+        envKey,
         type: dto.type,
         cron: dto.cron,
         enabled: dto.enabled ?? true,
@@ -129,7 +207,8 @@ export class MonitorsService {
       await this.remove(existing.id);
     }
 
-    return this.createMonitor({ releaseDeploymentId }, dto, options);
+    const envKey = this.requireEnvKey(dto.type, dto.config);
+    return this.createMonitor({ releaseDeploymentId }, dto, envKey, options);
   }
 
   async createForRelease(
@@ -147,7 +226,8 @@ export class MonitorsService {
       await this.remove(existing.id);
     }
 
-    return this.createMonitor({ releaseId }, dto, options);
+    const envKey = resolveMonitorEnvKey(dto.type, dto.config);
+    return this.createMonitor({ releaseId }, dto, envKey, options);
   }
 
   async disableAndUnschedule(id: string): Promise<void> {
@@ -180,7 +260,8 @@ export class MonitorsService {
       await this.remove(existing.id);
     }
 
-    return this.createMonitor({ testcaseScanId }, dto, options);
+    const envKey = resolveMonitorEnvKey(dto.type, dto.config);
+    return this.createMonitor({ testcaseScanId }, dto, envKey, options);
   }
 
   async update(
@@ -195,14 +276,18 @@ export class MonitorsService {
 
     const cron = dto.cron ?? existing.cron;
     const enabled = dto.enabled ?? existing.enabled;
-
     const type = (dto.type ?? existing.type) as MonitorType;
+    const config = (dto.config ??
+      (existing.config as Record<string, unknown>)) as Record<string, unknown>;
+    const envKey = resolveMonitorEnvKey(type, config) ?? existing.envKey;
+
     const monitor = await this.prisma.monitor.update({
       where: { id },
       data: {
         type: dto.type,
         cron: dto.cron,
         enabled: dto.enabled,
+        envKey,
         config: dto.config
           ? (this.normalizeMonitorConfig(type, dto.config) as Prisma.InputJsonValue)
           : undefined,
@@ -234,6 +319,22 @@ export class MonitorsService {
     await this.scheduler.unscheduleMonitor(id);
     await this.prisma.monitor.delete({ where: { id } });
     this.events.broadcast('monitor.deleted', { id });
+  }
+
+  private requireEnvKey(
+    type: MonitorType | string | undefined,
+    config: Record<string, unknown> | undefined,
+  ): string {
+    if (!type) {
+      throw new BadRequestException('Monitor type is required');
+    }
+    const envKey = resolveMonitorEnvKey(type, config);
+    if (!envKey) {
+      throw new BadRequestException(
+        'Deployment monitors require config.env; other monitors require a valid type',
+      );
+    }
+    return envKey;
   }
 
   private normalizeMonitorConfig(
