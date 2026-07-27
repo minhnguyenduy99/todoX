@@ -19,6 +19,14 @@ import {
   resolveTodoStatusOnDeploySuccess,
   shouldApplyTodoStatusTransition,
 } from '../common/todo-deployment-status-sync';
+import {
+  deploymentMetaFromConfigAndResult,
+} from '../notifications/notifications.service';
+import {
+  isFirstMonitorTerminalTransition,
+  isSubtaskTerminalTransition,
+  isTestcaseScanTerminalTransition,
+} from '../common/notification-transitions';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { mapMonitorResultToDeploymentStatus } from '../common/release-deployment-status-sync';
 import {
@@ -31,11 +39,13 @@ import {
   ReleaseDeploymentStatus,
   SubtaskStatus,
   TodoStatus,
+  TestcaseScanStatus,
   type MonitorResult,
 } from '@todo-platform/shared-types';
 import type { EnvConfig } from '../config/env.validation';
 import { ReleasesService } from '../releases/releases.service';
 import { ReleaseDeploymentDiscoveryService } from '../releases/release-deployment-discovery.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const MONITOR_QUEUE = 'monitor-checks';
 
@@ -56,6 +66,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly releasesService: ReleasesService,
     @Inject(forwardRef(() => ReleaseDeploymentDiscoveryService))
     private readonly releaseDeploymentDiscovery: ReleaseDeploymentDiscoveryService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -177,7 +188,27 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     const todoId = monitor.todoId ?? monitor.subtask?.todoId ?? null;
 
     if (monitor.subtaskId) {
-      await this.syncSubtaskStatus(monitor.subtaskId, result);
+      await this.syncSubtaskStatus(monitor, result);
+    }
+
+    if (
+      monitor.type === MonitorType.DEPLOYMENT &&
+      monitor.todoId &&
+      !monitor.subtaskId &&
+      monitor.todo
+    ) {
+      const outcome = isFirstMonitorTerminalTransition(previousResult, result);
+      if (outcome) {
+        const meta = deploymentMetaFromConfigAndResult(monitor.config, result);
+        await this.notifications.createForTodoDeployment({
+          todoId: monitor.todoId,
+          todoTitle: monitor.todo.title,
+          env: meta.env,
+          buildNumber: meta.buildNumber,
+          buildUrl: meta.buildUrl,
+          outcome,
+        });
+      }
     }
 
     const nextTodoStatus = todoId
@@ -216,10 +247,26 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     const nextStatus = mapMonitorResultToTestcaseScanStatus(result);
     if (!nextStatus) return;
 
+    const previousStatus = scan.status as TestcaseScanStatus;
+
     await this.prisma.testcaseScan.update({
       where: { id: testcaseScanId },
       data: { status: nextStatus },
     });
+
+    const scanOutcome = isTestcaseScanTerminalTransition(previousStatus, nextStatus);
+    if (scanOutcome) {
+      const todo = await this.prisma.todo.findUnique({ where: { id: scan.todoId } });
+      const scanMeta = result.metadata?.scan as { buildUrl?: string } | undefined;
+      await this.notifications.createForTestcaseScan({
+        scanId: scan.id,
+        scanName: scan.name,
+        todoId: scan.todoId,
+        todoTitle: todo?.title ?? 'Todo',
+        buildUrl: scanMeta?.buildUrl ?? scan.jobUrl,
+        outcome: scanOutcome,
+      });
+    }
 
     if (isTerminalTestcaseScanStatus(nextStatus)) {
       await this.prisma.monitor.update({
@@ -333,9 +380,18 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async syncSubtaskStatus(
-    subtaskId: string,
+    monitor: {
+      id: string;
+      subtaskId: string | null;
+      type: string;
+      config: unknown;
+      subtask: { id: string; name: string; todoId: string; status: string } | null;
+      todo: { id: string; title: string } | null;
+    },
     result: MonitorResult,
   ): Promise<void> {
+    if (!monitor.subtaskId || !monitor.subtask) return;
+
     let status: SubtaskStatus | undefined;
     if (result.status === MonitorResultStatus.SUCCESS) {
       status = SubtaskStatus.COMPLETED;
@@ -347,11 +403,31 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
     if (!status) return;
 
+    const previousStatus = monitor.subtask.status as SubtaskStatus;
+    const subtaskOutcome =
+      monitor.type === MonitorType.DEPLOYMENT
+        ? isSubtaskTerminalTransition(previousStatus, status)
+        : null;
+
     const subtask = await this.prisma.subtask.update({
-      where: { id: subtaskId },
+      where: { id: monitor.subtaskId },
       data: { status },
-      include: { monitors: true },
+      include: { monitors: true, todo: true },
     });
+
+    if (subtaskOutcome) {
+      const meta = deploymentMetaFromConfigAndResult(monitor.config, result);
+      await this.notifications.createForSubtaskDeployment({
+        subtaskId: subtask.id,
+        subtaskName: subtask.name,
+        todoId: subtask.todoId,
+        todoTitle: subtask.todo?.title ?? monitor.todo?.title ?? 'Todo',
+        env: meta.env,
+        buildNumber: meta.buildNumber,
+        buildUrl: meta.buildUrl,
+        outcome: subtaskOutcome,
+      });
+    }
 
     this.events.broadcast('subtask.updated', toSubtaskDto(subtask));
   }

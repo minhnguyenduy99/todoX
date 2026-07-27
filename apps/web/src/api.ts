@@ -9,6 +9,7 @@ import {
   type ServiceDto,
   type TodoDto,
   type UpdateServiceDeploymentDto,
+  type NotificationDto,
   type WebSocketEvent,
 } from '@todo-platform/shared-types';
 
@@ -29,6 +30,23 @@ export async function fetchReleases(): Promise<ReleaseDto[]> {
 export async function fetchServices(): Promise<ServiceDto[]> {
   const res = await fetch(`${API_BASE}/services`);
   if (!res.ok) throw new Error(`Failed to fetch services: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchNotifications(): Promise<NotificationDto[]> {
+  const res = await fetch(`${API_BASE}/notifications`);
+  if (!res.ok) throw new Error(`Failed to fetch notifications: ${res.status}`);
+  return res.json();
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const res = await fetch(`${API_BASE}/notifications/read-all`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to mark notifications read: ${res.status}`);
+}
+
+export async function markNotificationRead(id: string): Promise<NotificationDto> {
+  const res = await fetch(`${API_BASE}/notifications/${id}/read`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(`Failed to mark notification read: ${res.status}`);
   return res.json();
 }
 
@@ -156,4 +174,4 @@ export function formatDate(date: string | null | undefined): string {
   return new Date(date).toLocaleString();
 }
 
-export type { WebSocketEvent, TodoDto, ReleaseDto, ServiceDto };
+export type { WebSocketEvent, TodoDto, ReleaseDto, ServiceDto, NotificationDto };

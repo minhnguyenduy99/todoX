@@ -9,6 +9,7 @@ import { ServicesView } from './components/ServicesView';
 import { ActiveDeploymentsPanel } from './components/ActiveDeploymentsPanel';
 import { SideNav, type AppSection } from './components/SideNav';
 import { ServiceFilterCombobox } from './components/ServiceFilterCombobox';
+import { NotificationBell } from './components/NotificationBell';
 import {
   filterTodosByService,
   parseServiceFilter,
@@ -95,9 +96,12 @@ export function App() {
               <h1 className="header-title">Services</h1>
             )}
           </div>
-          <div className="connection-status">
-            <span className={`connection-dot ${connected ? 'connected' : ''}`} />
-            {connected ? 'Live updates active' : 'Connecting...'}
+          <div className="header-end">
+            <NotificationBell />
+            <div className="connection-status">
+              <span className={`connection-dot ${connected ? 'connected' : ''}`} />
+              {connected ? 'Live updates active' : 'Connecting...'}
+            </div>
           </div>
         </header>
 

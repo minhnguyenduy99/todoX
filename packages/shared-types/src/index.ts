@@ -322,12 +322,36 @@ export type WebSocketEventType =
   | 'monitor.updated'
   | 'monitor.deleted'
   | 'release.created'
-  | 'release.updated';
+  | 'release.updated'
+  | 'notification.created'
+  | 'notification.updated';
 
 export interface WebSocketEvent<T = unknown> {
   type: WebSocketEventType;
   payload: T;
   timestamp: string;
+}
+
+export enum NotificationKind {
+  TODO_DEPLOYMENT = 'todo_deployment',
+  SUBTASK_DEPLOYMENT = 'subtask_deployment',
+  RELEASE_DEPLOYMENT = 'release_deployment',
+  TESTCASE_SCAN = 'testcase_scan',
+}
+
+export interface NotificationDto {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  payload: Record<string, unknown>;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationUpdatedPayload {
+  readAll?: boolean;
+  notification?: NotificationDto;
 }
 
 export interface HttpMonitorConfig {

@@ -232,6 +232,18 @@ Connect to `ws://localhost:10003/ws` (or `ws://localhost:10005/ws` via the Docke
 - `todo.created`, `todo.updated`, `todo.deleted`
 - `subtask.created`, `subtask.updated`, `subtask.deleted`
 - `monitor.created`, `monitor.updated`, `monitor.deleted`
+- `release.created`, `release.updated`
+- `notification.created`, `notification.updated`
+
+### Notifications REST
+
+```
+GET    /notifications
+PATCH  /notifications/:id/read
+POST   /notifications/read-all
+```
+
+Notifications are global (no auth), retained for 24 hours, and pushed over WebSocket when created or marked read.
 
 ## Monitor Providers
 

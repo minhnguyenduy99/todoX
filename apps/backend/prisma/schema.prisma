@@ -69,6 +69,13 @@ enum ReleaseDeploymentStatus {
   failed
 }
 
+enum NotificationKind {
+  todo_deployment
+  subtask_deployment
+  release_deployment
+  testcase_scan
+}
+
 model Todo {
   id                    String                  @id @default(uuid())
   title                 String
@@ -299,4 +306,18 @@ model CompletedTodo {
   @@index([originalTodoId])
   @@index([serviceId])
   @@map("completed_todos")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  kind      NotificationKind
+  title     String
+  body      String?
+  payload   Json             @default("{}")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([readAt])
+  @@map("notifications")
 }

@@ -35,6 +35,8 @@ import {
 } from '../common/release-content-assembler';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { isReleaseDeploymentTerminalTransition } from '../common/notification-transitions';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReleaseDeploymentDiscoveryService } from './release-deployment-discovery.service';
 
@@ -68,6 +70,7 @@ export class ReleasesService {
     private readonly monitorsService: MonitorsService,
     @Inject(forwardRef(() => ReleaseDeploymentDiscoveryService))
     private readonly releaseDeploymentDiscovery: ReleaseDeploymentDiscoveryService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll(): Promise<ReleaseDto[]> {
@@ -329,7 +332,7 @@ export class ReleasesService {
   ): Promise<void> {
     const deployment = await this.prisma.releaseDeployment.findUnique({
       where: { id: releaseDeploymentId },
-      include: { release: true },
+      include: { release: true, service: true },
     });
     if (!deployment) return;
 
@@ -337,6 +340,22 @@ export class ReleasesService {
       where: { id: releaseDeploymentId },
       data: { status: nextStatus },
     });
+
+    const releaseOutcome = isReleaseDeploymentTerminalTransition(
+      previousStatus,
+      nextStatus,
+    );
+    if (releaseOutcome) {
+      await this.notifications.createForReleaseDeployment({
+        releaseId: deployment.releaseId,
+        releaseDate: deployment.release.releaseDate,
+        serviceKeyName: deployment.service.keyName,
+        environment: deployment.environment,
+        buildNumber: deployment.buildNumber,
+        buildUrl: deployment.jobUrl,
+        outcome: releaseOutcome,
+      });
+    }
 
     if (
       nextStatus === ReleaseDeploymentStatus.SUCCESSFUL &&

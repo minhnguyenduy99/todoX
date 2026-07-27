@@ -7,6 +7,7 @@ import {
 import { ReleaseStatus, ReleaseType, TodoStatus } from '@todo-platform/shared-types';
 import { EventsGateway } from '../events/events.gateway';
 import { MonitorsService } from '../monitors/monitors.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReleasesService } from './releases.service';
 import { ReleaseDeploymentDiscoveryService } from './release-deployment-discovery.service';
@@ -163,6 +164,12 @@ describe('ReleasesService', () => {
         {
           provide: ReleaseDeploymentDiscoveryService,
           useValue: releaseDeploymentDiscovery,
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            createForReleaseDeployment: jest.fn(),
+          },
         },
       ],
     }).compile();

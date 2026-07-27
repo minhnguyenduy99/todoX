@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { WebSocketEvent, TodoDto, SubtaskDto } from '@todo-platform/shared-types';
+import type { WebSocketEvent, TodoDto, SubtaskDto, NotificationDto, NotificationUpdatedPayload } from '@todo-platform/shared-types';
 import { getWsUrl } from '../api';
 
 export function useWebSocket(): boolean {
@@ -108,6 +108,34 @@ function handleEvent(
     case 'release.updated': {
       queryClient.invalidateQueries({ queryKey: ['releases'] });
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      break;
+    }
+    case 'notification.created': {
+      const notification = event.payload as NotificationDto;
+      queryClient.setQueryData<NotificationDto[]>(['notifications'], (old = []) => {
+        if (old.some((item) => item.id === notification.id)) return old;
+        return [notification, ...old];
+      });
+      break;
+    }
+    case 'notification.updated': {
+      const payload = event.payload as NotificationUpdatedPayload;
+      if (payload.readAll) {
+        queryClient.setQueryData<NotificationDto[]>(['notifications'], (old = []) =>
+          old.map((item) => ({
+            ...item,
+            readAt: item.readAt ?? event.timestamp,
+          })),
+        );
+      } else if (payload.notification) {
+        queryClient.setQueryData<NotificationDto[]>(['notifications'], (old = []) =>
+          old.map((item) =>
+            item.id === payload.notification!.id ? payload.notification! : item,
+          ),
+        );
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
       break;
     }
   }
