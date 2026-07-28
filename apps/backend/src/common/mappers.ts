@@ -23,6 +23,7 @@ import {
   type TestcaseScanDto,
   type TodoDto,
   TestcaseScanStatus,
+  JenkinsBuildResult,
 } from '@todo-platform/shared-types';
 import type {
   AssociatedPullRequest,
@@ -196,6 +197,9 @@ export function toTestcaseScanDto(scan: TestcaseScan): TestcaseScanDto {
     todoId: scan.todoId,
     name: scan.name,
     status: scan.status as TestcaseScanStatus,
+    buildResult: scan.buildResult
+      ? (scan.buildResult as JenkinsBuildResult)
+      : null,
     jobUrl: scan.jobUrl,
     createdAt: scan.createdAt.toISOString(),
     updatedAt: scan.updatedAt.toISOString(),

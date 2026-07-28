@@ -37,6 +37,13 @@ enum TestcaseScanStatus {
   failed
 }
 
+enum JenkinsBuildResult {
+  SUCCESS
+  UNSTABLE
+  FAILURE
+  ABORTED
+}
+
 enum DeployedEnvironmentName {
   dev
   uat
@@ -99,11 +106,12 @@ model Todo {
 }
 
 model TestcaseScan {
-  id        String             @id @default(uuid())
-  todoId    String             @map("todo_id")
-  name      String
-  status    TestcaseScanStatus @default(scanning)
-  jobUrl    String?            @map("job_url")
+  id          String              @id @default(uuid())
+  todoId      String              @map("todo_id")
+  name        String
+  status      TestcaseScanStatus  @default(scanning)
+  buildResult JenkinsBuildResult? @map("build_result")
+  jobUrl      String?             @map("job_url")
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   todo      Todo               @relation(fields: [todoId], references: [id], onDelete: Cascade)

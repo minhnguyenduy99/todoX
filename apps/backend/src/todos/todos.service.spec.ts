@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TodosService } from './todos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
@@ -24,6 +25,10 @@ describe('TodosService', () => {
     deployedEnvironment: {
       deleteMany: jest.Mock;
       create: jest.Mock;
+    };
+    testcaseScan: {
+      findMany: jest.Mock;
+      update: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -68,6 +73,10 @@ describe('TodosService', () => {
         deleteMany: jest.fn(),
         create: jest.fn(),
       },
+      testcaseScan: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+      },
       $transaction: jest.fn((ops) => Promise.all(ops)),
     };
     events = { broadcast: jest.fn() };
@@ -87,6 +96,10 @@ describe('TodosService', () => {
         { provide: EventsGateway, useValue: events },
         { provide: MonitorsService, useValue: monitorsService },
         { provide: ReleasesService, useValue: releasesService },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
+        },
       ],
     }).compile();
 

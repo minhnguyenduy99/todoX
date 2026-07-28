@@ -1,5 +1,10 @@
 import type { TestcaseScanDto } from '@todo-platform/shared-types';
 import { TestcaseScanStatus } from '@todo-platform/shared-types';
+import {
+  formatTestcaseScanResultLabel,
+  testcaseScanResultBadgeClassName,
+  testcaseScanStatusChipClassName,
+} from '../utils/testcaseScanDisplay';
 
 interface TestcaseScanListProps {
   scans: TestcaseScanDto[];
@@ -7,50 +12,32 @@ interface TestcaseScanListProps {
   layout?: 'chips' | 'lines';
 }
 
-function scanStatusClassName(status: TestcaseScanStatus): string {
-  switch (status) {
-    case TestcaseScanStatus.SCANNING:
-      return 'testcase-scan-chip-scanning';
-    case TestcaseScanStatus.COMPLETED:
-      return 'testcase-scan-chip-completed';
-    case TestcaseScanStatus.FAILED:
-      return 'testcase-scan-chip-failed';
-    default:
-      return '';
-  }
+function ScanResultBadge({ scan }: { scan: TestcaseScanDto }) {
+  const resultLabel = formatTestcaseScanResultLabel(scan);
+
+  return (
+    <span className={`badge badge-sm ${testcaseScanResultBadgeClassName(scan)}`}>
+      {resultLabel}
+    </span>
+  );
 }
 
-function scanStatusLabel(status: TestcaseScanStatus): string {
-  switch (status) {
-    case TestcaseScanStatus.SCANNING:
-      return 'scanning';
-    case TestcaseScanStatus.COMPLETED:
-      return 'completed';
-    case TestcaseScanStatus.FAILED:
-      return 'failed';
-    default:
-      return status;
-  }
-}
-
-function ScanRow({
+function ScanChipRow({
   scan,
   className,
-  showStatus = true,
 }: {
   scan: TestcaseScanDto;
   className: string;
-  showStatus?: boolean;
 }) {
+  const resultLabel = formatTestcaseScanResultLabel(scan);
+
   const content = (
     <>
-      {scan.status === TestcaseScanStatus.SCANNING && (
+      {scan.status === TestcaseScanStatus.SCANNING && !scan.buildResult && (
         <span className="testcase-scan-spinner" aria-hidden="true" />
       )}
       <span className="testcase-scan-name">{scan.name}</span>
-      {showStatus && (
-        <span className="testcase-scan-status">{scanStatusLabel(scan.status)}</span>
-      )}
+      <span className="testcase-scan-status">{resultLabel}</span>
     </>
   );
 
@@ -61,7 +48,7 @@ function ScanRow({
         href={scan.jobUrl}
         target="_blank"
         rel="noopener noreferrer"
-        title={`${scan.name} · ${scanStatusLabel(scan.status)}`}
+        title={`${scan.name} · ${resultLabel}`}
         onClick={(e) => e.stopPropagation()}
       >
         {content}
@@ -70,9 +57,41 @@ function ScanRow({
   }
 
   return (
-    <span className={className} title={`${scan.name} · ${scanStatusLabel(scan.status)}`}>
+    <span className={className} title={`${scan.name} · ${resultLabel}`}>
       {content}
     </span>
+  );
+}
+
+function ScanLineRow({ scan }: { scan: TestcaseScanDto }) {
+  const resultLabel = formatTestcaseScanResultLabel(scan);
+  const nameContent = (
+    <>
+      {scan.status === TestcaseScanStatus.SCANNING && !scan.buildResult && (
+        <span className="testcase-scan-spinner" aria-hidden="true" />
+      )}
+      <span className="testcase-scan-name">{scan.name}</span>
+    </>
+  );
+
+  return (
+    <div className="testcase-scan-line-row">
+      {scan.jobUrl ? (
+        <a
+          className="testcase-scan-line-link"
+          href={scan.jobUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`${scan.name} · ${resultLabel}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {nameContent}
+        </a>
+      ) : (
+        <div className="testcase-scan-line-name">{nameContent}</div>
+      )}
+      <ScanResultBadge scan={scan} />
+    </div>
   );
 }
 
@@ -87,11 +106,7 @@ export function TestcaseScanList({
     return (
       <div className="testcase-scan-lines" title="Testcase scan history">
         {scans.map((scan) => (
-          <ScanRow
-            key={scan.id}
-            scan={scan}
-            className={`testcase-scan-line testcase-scan-chip ${scanStatusClassName(scan.status)}`}
-          />
+          <ScanLineRow key={scan.id} scan={scan} />
         ))}
       </div>
     );
@@ -103,22 +118,12 @@ export function TestcaseScanList({
       title="Testcase scan history"
     >
       {scans.map((scan) => (
-        <ScanRow
+        <ScanChipRow
           key={scan.id}
           scan={scan}
-          className={`testcase-scan-chip ${scanStatusClassName(scan.status)}`}
+          className={`testcase-scan-chip ${testcaseScanStatusChipClassName(scan.status)}`}
         />
       ))}
     </div>
   );
-}
-
-export function getActiveTestcaseScans(
-  scans: TestcaseScanDto[] | undefined,
-): TestcaseScanDto[] {
-  return (scans ?? []).filter((scan) => scan.status === TestcaseScanStatus.SCANNING);
-}
-
-export function hasActiveTestcaseScan(scans: TestcaseScanDto[] | undefined): boolean {
-  return getActiveTestcaseScans(scans).length > 0;
 }

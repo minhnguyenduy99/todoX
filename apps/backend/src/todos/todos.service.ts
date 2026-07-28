@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
@@ -7,6 +8,7 @@ import { syncPullRequests } from '../common/pull-requests';
 import { syncDeployedEnvironments } from '../common/deployed-environments';
 import { syncAssociatedTickets } from '../common/sync-associated-tickets';
 import { syncTestcaseScans } from '../common/sync-testcase-scans';
+import { backfillMissingTestcaseScanBuildResults } from '../common/backfill-testcase-scan-build-results';
 import {
   applyTodoServiceResolution,
   resolveTodoServiceInput,
@@ -16,6 +18,7 @@ import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/share
 import type { ListTodosQuery } from '../common/release.dto';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { ReleasesService } from '../releases/releases.service';
+import type { EnvConfig } from '../config/env.validation';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
@@ -59,9 +62,18 @@ export class TodosService {
     private readonly events: EventsGateway,
     private readonly monitorsService: MonitorsService,
     private readonly releasesService: ReleasesService,
+    private readonly configService: ConfigService<EnvConfig, true>,
   ) {}
 
+  private async prepareTodoListResponse(): Promise<void> {
+    await backfillMissingTestcaseScanBuildResults(
+      this.prisma,
+      this.configService.get('JENKINS_SCAN_AUTH', { infer: true }),
+    );
+  }
+
   async findAll(filters?: ListTodosQuery): Promise<TodoDto[]> {
+    await this.prepareTodoListResponse();
     const where: Prisma.TodoWhereInput = {};
 
     if (filters?.status) {
@@ -95,6 +107,7 @@ export class TodosService {
   }
 
   async findOne(id: string): Promise<TodoDto> {
+    await this.prepareTodoListResponse();
     const todo = await this.prisma.todo.findUnique({
       where: { id },
       include: todoInclude,

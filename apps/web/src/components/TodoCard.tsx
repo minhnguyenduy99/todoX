@@ -3,7 +3,6 @@ import { todoStatusColor, subtaskStatusColor } from '../api';
 import { PullRequestList } from './PullRequestList';
 import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
-import { getActiveTestcaseScans, TestcaseScanList } from './TestcaseScanList';
 import { CopyableUuid } from './CopyableUuid';
 import { ServiceBadge } from './ServiceBadge';
 
@@ -71,10 +70,6 @@ export function TodoCard({
           <DeployedEnvironmentList
             deployedEnvironments={todo.deployedEnvironments ?? []}
             compact={compact}
-          />
-          <TestcaseScanList
-            scans={getActiveTestcaseScans(todo.testcaseScanHistory)}
-            compact
           />
           {showDescription && todo.description && (
             <div className="todo-description">{todo.description}</div>

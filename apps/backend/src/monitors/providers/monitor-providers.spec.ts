@@ -304,6 +304,7 @@ describe('mapJenkinsBuildToScan', () => {
       url: 'https://jenkins-scan.example.net/job/test-scan/42/',
     });
     expect(scan.status).toBe(DeploymentStatus.SUCCESS);
+    expect(scan.result).toBe('UNSTABLE');
     expect(monitorStatus).toBe(MonitorResultStatus.SUCCESS);
   });
 });

@@ -1,10 +1,12 @@
 import {
   DeploymentStatus,
+  JenkinsBuildResult,
   MonitorResultStatus,
   TestcaseScanStatus,
 } from '@todo-platform/shared-types';
 import {
   isTerminalTestcaseScanStatus,
+  mapMonitorResultToTestcaseScanBuildResult,
   mapMonitorResultToTestcaseScanStatus,
 } from './testcase-scan-status-sync';
 
@@ -45,6 +47,30 @@ describe('mapMonitorResultToTestcaseScanStatus', () => {
         status: MonitorResultStatus.FAILED,
         message: 'Jenkins API returned 401',
         metadata: { statusCode: 401 },
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('mapMonitorResultToTestcaseScanBuildResult', () => {
+  it('preserves UNSTABLE from monitor metadata', () => {
+    expect(
+      mapMonitorResultToTestcaseScanBuildResult({
+        status: MonitorResultStatus.SUCCESS,
+        message: 'done',
+        metadata: {
+          scan: { status: DeploymentStatus.SUCCESS, result: JenkinsBuildResult.UNSTABLE },
+        },
+      }),
+    ).toBe(JenkinsBuildResult.UNSTABLE);
+  });
+
+  it('returns null while the build is running', () => {
+    expect(
+      mapMonitorResultToTestcaseScanBuildResult({
+        status: MonitorResultStatus.RUNNING,
+        message: 'running',
+        metadata: { scan: { status: DeploymentStatus.IN_PROGRESS } },
       }),
     ).toBeNull();
   });

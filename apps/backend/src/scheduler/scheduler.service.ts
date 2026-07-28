@@ -31,6 +31,7 @@ import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { mapMonitorResultToDeploymentStatus } from '../common/release-deployment-status-sync';
 import {
   isTerminalTestcaseScanStatus,
+  mapMonitorResultToTestcaseScanBuildResult,
   mapMonitorResultToTestcaseScanStatus,
 } from '../common/testcase-scan-status-sync';
 import {
@@ -248,10 +249,11 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     if (!nextStatus) return;
 
     const previousStatus = scan.status as TestcaseScanStatus;
+    const buildResult = mapMonitorResultToTestcaseScanBuildResult(result);
 
     await this.prisma.testcaseScan.update({
       where: { id: testcaseScanId },
-      data: { status: nextStatus },
+      data: { status: nextStatus, buildResult },
     });
 
     const scanOutcome = isTestcaseScanTerminalTransition(previousStatus, nextStatus);

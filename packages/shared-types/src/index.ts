@@ -65,6 +65,14 @@ export enum TestcaseScanStatus {
   FAILED = 'failed',
 }
 
+/** Terminal Jenkins build result from the scan job poll. */
+export enum JenkinsBuildResult {
+  SUCCESS = 'SUCCESS',
+  UNSTABLE = 'UNSTABLE',
+  FAILURE = 'FAILURE',
+  ABORTED = 'ABORTED',
+}
+
 export interface ScanJobInfo {
   jobName: string;
   buildNumber: number;
@@ -72,6 +80,8 @@ export interface ScanJobInfo {
   status: DeploymentStatus;
   buildUrl?: string;
   timestamp?: number;
+  /** Raw Jenkins `result` when the build has finished. */
+  result?: JenkinsBuildResult | null;
 }
 
 export interface DeploymentInfo {
@@ -134,6 +144,8 @@ export interface TestcaseScanDto {
   todoId: string;
   name: string;
   status: TestcaseScanStatus;
+  /** Jenkins build result when the job has finished; null while building or for manual scans. */
+  buildResult: JenkinsBuildResult | null;
   jobUrl: string | null;
   createdAt: string;
   updatedAt: string;

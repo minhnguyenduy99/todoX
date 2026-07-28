@@ -215,6 +215,9 @@ export function mapJenkinsBuildToScan(
     status: scanStatus,
     buildUrl: build.url,
     timestamp: build.timestamp,
+    result: build.building
+      ? null
+      : (build.result as ScanJobInfo['result']) ?? null,
   };
 
   return { scan, monitorStatus };
