@@ -7,6 +7,7 @@ import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { TestcaseScanList } from './TestcaseScanList';
 import { CopyableUuid } from './CopyableUuid';
 import { ServiceBadge } from './ServiceBadge';
+import { MarkdownContent } from './MarkdownContent';
 
 interface SubtaskPanelProps {
   todo: TodoDto;
@@ -101,7 +102,9 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
             <h3 className="subtask-panel-label">Description</h3>
             {todo.description ? (
               <div className="subtask-panel-description-content">
-                <p className="subtask-panel-description">{todo.description}</p>
+                <MarkdownContent className="subtask-panel-description">
+                  {todo.description}
+                </MarkdownContent>
               </div>
             ) : (
               <p className="subtask-panel-empty-field">No description</p>
@@ -112,7 +115,9 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
             <h3 className="subtask-panel-label">Changelog</h3>
             {todo.changelog ? (
               <div className="subtask-panel-description-content">
-                <p className="subtask-panel-description">{todo.changelog}</p>
+                <MarkdownContent className="subtask-panel-description">
+                  {todo.changelog}
+                </MarkdownContent>
               </div>
             ) : (
               <p className="subtask-panel-empty-field">No changelog</p>

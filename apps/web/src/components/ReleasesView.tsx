@@ -8,6 +8,7 @@ import {
 } from '@todo-platform/shared-types';
 import { fetchReleases, formatDate, releaseStatusColor, releaseStatusLabel } from '../api';
 import { CopyableUuid } from './CopyableUuid';
+import { MarkdownContent } from './MarkdownContent';
 import {
   releaseDeploymentStatusChipClassName,
   resolveReleaseDeploymentBuildUrl,
@@ -180,7 +181,9 @@ function ReleasePanel({
             </div>
             {release.content ? (
               <div className="subtask-panel-description-content">
-                <pre className="release-content">{release.content}</pre>
+                <MarkdownContent className="subtask-panel-description release-content">
+                  {release.content}
+                </MarkdownContent>
               </div>
             ) : (
               <p className="subtask-panel-empty-field">No content</p>

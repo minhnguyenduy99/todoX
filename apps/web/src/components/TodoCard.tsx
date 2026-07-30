@@ -7,6 +7,7 @@ import { TestcaseScanList } from './TestcaseScanList';
 import { CopyableUuid } from './CopyableUuid';
 import { getActiveTestcaseScans } from '../utils/testcaseScanDisplay';
 import { ServiceBadge } from './ServiceBadge';
+import { MarkdownContent } from './MarkdownContent';
 
 interface TodoCardProps {
   todo: TodoDto;
@@ -78,7 +79,7 @@ export function TodoCard({
             compact
           />
           {showDescription && todo.description && (
-            <div className="todo-description">{todo.description}</div>
+            <MarkdownContent className="todo-description">{todo.description}</MarkdownContent>
           )}
           {showSubtaskCount && subtasks.length > 0 && (
             <div className="subtask-count">
