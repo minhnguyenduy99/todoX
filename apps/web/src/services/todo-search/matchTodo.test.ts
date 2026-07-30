@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { AssociatedTicketDto, TodoDto } from '@todo-platform/shared-types';
-import { AssociatedTicketType, TodoStatus } from '@todo-platform/shared-types';
+import type {
+  AssociatedPullRequestDto,
+  AssociatedTicketDto,
+  SubtaskDto,
+  TodoDto,
+} from '@todo-platform/shared-types';
+import { AssociatedTicketType, SubtaskStatus, TodoStatus } from '@todo-platform/shared-types';
 import { normalizeSearchQuery, todoMatchesSearchQuery } from './matchTodo';
 
 const baseTicket = (overrides: Partial<AssociatedTicketDto> = {}): AssociatedTicketDto => ({
@@ -9,6 +14,29 @@ const baseTicket = (overrides: Partial<AssociatedTicketDto> = {}): AssociatedTic
   title: 'Payment retry bug',
   type: AssociatedTicketType.BUG,
   link: 'https://jira.example.com/browse/FB-1234',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  ...overrides,
+});
+
+const basePullRequest = (
+  overrides: Partial<AssociatedPullRequestDto> = {},
+): AssociatedPullRequestDto => ({
+  id: 'pr-1',
+  number: 4567,
+  title: 'Fix oauth redirect loop',
+  status: 'open',
+  url: 'https://github.com/org/repo/pull/4567',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  ...overrides,
+});
+
+const baseSubtask = (overrides: Partial<SubtaskDto> = {}): SubtaskDto => ({
+  id: 'sub-1',
+  todoId: 'todo-1',
+  name: 'Implement redirect',
+  status: SubtaskStatus.NOT_STARTED,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   ...overrides,
@@ -89,5 +117,45 @@ describe('todoMatchesSearchQuery', () => {
       description: 'Contains oauth keyword in description',
     });
     assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('oauth')), false);
+  });
+
+  it('matches associated pull request title', () => {
+    const todo = baseTodo({
+      title: 'Unrelated',
+      pullRequests: [basePullRequest({ title: 'Fix oauth redirect loop' })],
+    });
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('redirect')), true);
+  });
+
+  it('matches associated pull request number', () => {
+    const todo = baseTodo({
+      title: 'Unrelated',
+      pullRequests: [basePullRequest({ number: 4567 })],
+    });
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('4567')), true);
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('#4567')), true);
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('456')), true);
+  });
+
+  it('does not match pull requests when query is only a hash', () => {
+    const todo = baseTodo({
+      title: 'Unrelated',
+      pullRequests: [basePullRequest({ number: 4567, title: 'Fix oauth redirect loop' })],
+    });
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('#')), false);
+  });
+
+  it('matches pull request on a subtask', () => {
+    const todo = baseTodo({
+      title: 'Unrelated',
+      pullRequests: [],
+      subtasks: [
+        baseSubtask({
+          pullRequests: [basePullRequest({ number: 8910, title: 'Wire webhook retries' })],
+        }),
+      ],
+    });
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('8910')), true);
+    assert.equal(todoMatchesSearchQuery(todo, normalizeSearchQuery('webhook')), true);
   });
 });

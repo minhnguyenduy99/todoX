@@ -68,8 +68,6 @@ export function App() {
     [serviceFilteredTodos, searchQuery],
   );
 
-  const hasActiveSearch = searchQuery.trim().length > 0;
-
   function handleFilterChange(nextFilter: ServiceFilterValue) {
     setServiceFilter(nextFilter);
     syncServiceFilterToUrl(nextFilter);
@@ -162,32 +160,11 @@ export function App() {
               todos.length > 0 &&
               filteredTodos.length === 0 && (
                 <div className="empty-state">
-                  {hasActiveSearch ? (
-                    <>
-                      <h2>No todos match your search</h2>
-                      <p>
-                        {serviceFilter.kind === 'all' ? (
-                          <>
-                            Try a different search term, or clear the search box to see all
-                            todos.
-                          </>
-                        ) : (
-                          <>
-                            Try a different search term, clear search, or select{' '}
-                            <strong>All services</strong>.
-                          </>
-                        )}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h2>No todos match this service filter</h2>
-                      <p>
-                        Try selecting <strong>All services</strong> or another service from
-                        the filter above.
-                      </p>
-                    </>
-                  )}
+                  <h2>No todos match your filters</h2>
+                  <p>
+                    Try clearing search, selecting <strong>All services</strong>, or choosing
+                    another service.
+                  </p>
                 </div>
               )}
 

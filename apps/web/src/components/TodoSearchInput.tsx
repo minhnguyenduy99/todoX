@@ -10,7 +10,7 @@ export function TodoSearchInput({ value, onChange, disabled }: TodoSearchInputPr
       className="todo-search-input"
       type="search"
       aria-label="Search todos"
-      placeholder="Search todos or tickets…"
+      placeholder="Search todos, tickets, or PRs…"
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}

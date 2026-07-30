@@ -177,8 +177,7 @@ body {
   position: relative;
 }
 
-.service-filter-input,
-.todo-search-input {
+.service-filter-input {
   width: 100%;
   min-width: 12rem;
   height: 2.125rem;
@@ -193,7 +192,17 @@ body {
 }
 
 .todo-search-input {
-  min-width: 14rem;
+  flex: 0 0 auto;
+  width: 18.2rem;
+  height: 2.125rem;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0 0.75rem;
 }
 
 .service-filter-input:focus,
