@@ -16,12 +16,17 @@ import {
   syncServiceFilterToUrl,
   type ServiceFilterValue,
 } from './utils/serviceFilter';
-
-type TodoViewMode = 'list' | 'kanban';
+import {
+  readTodoViewModeFromStorage,
+  syncTodoViewModeToStorage,
+  type TodoViewMode,
+} from './utils/todoViewMode';
 
 export function App() {
   const [section, setSection] = useState<AppSection>('todos');
-  const [todoViewMode, setTodoViewMode] = useState<TodoViewMode>('list');
+  const [todoViewMode, setTodoViewMode] = useState<TodoViewMode>(() =>
+    readTodoViewModeFromStorage(),
+  );
   const [serviceFilter, setServiceFilter] = useState<ServiceFilterValue>(() =>
     parseServiceFilter(window.location.search),
   );
@@ -60,6 +65,11 @@ export function App() {
     syncServiceFilterToUrl(nextFilter);
   }
 
+  function handleTodoViewModeChange(mode: TodoViewMode) {
+    setTodoViewMode(mode);
+    syncTodoViewModeToStorage(mode);
+  }
+
   return (
     <div className="app-shell">
       <SideNav active={section} onChange={setSection} />
@@ -73,14 +83,14 @@ export function App() {
                   <button
                     type="button"
                     className={`view-toggle-btn${todoViewMode === 'list' ? ' active' : ''}`}
-                    onClick={() => setTodoViewMode('list')}
+                    onClick={() => handleTodoViewModeChange('list')}
                   >
                     List
                   </button>
                   <button
                     type="button"
                     className={`view-toggle-btn${todoViewMode === 'kanban' ? ' active' : ''}`}
-                    onClick={() => setTodoViewMode('kanban')}
+                    onClick={() => handleTodoViewModeChange('kanban')}
                   >
                     Kanban
                   </button>
