@@ -45,33 +45,42 @@ function DeploymentChip({
   if (buildUrl) titleParts.push(buildUrl);
   const title = titleParts.join(' · ');
 
-  const chipContent = (
-    <>
+  const chipMeta = (
+    <span className="env-chip-meta">
+      {status === DeploymentStatus.IN_PROGRESS && (
+        <span className="env-chip-spinner" aria-hidden="true" />
+      )}
+      <span className="env-chip-build">#{buildNumber}</span>
+      {duration && <span className="env-chip-duration">{duration}</span>}
+    </span>
+  );
+
+  const chipContent = stageLabel ? (
+    <span className="env-chip-body">
       <span className="env-chip-row">
         <span
           className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
         >
           {environment}
         </span>
-        <span className="env-chip-meta">
-          {status === DeploymentStatus.IN_PROGRESS && (
-            <span className="env-chip-spinner" aria-hidden="true" />
-          )}
-          <span className="env-chip-build">#{buildNumber}</span>
-          {duration && <span className="env-chip-duration">{duration}</span>}
-        </span>
+        {chipMeta}
       </span>
-      {stageLabel && (
-        <span className="env-chip-step" title={stageLabel}>
-          {stageLabel}
-        </span>
-      )}
+      <span className="env-chip-step" title={stageLabel}>
+        {stageLabel}
+      </span>
+    </span>
+  ) : (
+    <>
+      <span
+        className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
+      >
+        {environment}
+      </span>
+      {chipMeta}
     </>
   );
 
-  const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip${
-    stageLabel ? ' env-chip-has-step' : ''
-  }`;
+  const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip`;
 
   if (buildUrl) {
     return (

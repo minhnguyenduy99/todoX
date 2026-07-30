@@ -7,6 +7,7 @@ import {
   type ReleaseDto,
 } from '@todo-platform/shared-types';
 import { fetchReleases, formatDate, releaseStatusColor, releaseStatusLabel } from '../api';
+import { CopyableUuid } from './CopyableUuid';
 import {
   releaseDeploymentStatusChipClassName,
   resolveReleaseDeploymentBuildUrl,
@@ -65,9 +66,12 @@ export function ReleasesView() {
                     {release.type}
                   </span>
                 </div>
-                <span className={`badge badge-sm ${releaseStatusColor(release.status)}`}>
-                  {releaseStatusLabel(release.status)}
-                </span>
+                <div className="release-summary-actions">
+                  <span className={`badge badge-sm ${releaseStatusColor(release.status)}`}>
+                    {releaseStatusLabel(release.status)}
+                  </span>
+                  <CopyableUuid uuid={release.id} iconOnly />
+                </div>
               </div>
               <span className="release-meta">Updated {formatDate(release.updatedAt)}</span>
             </button>
@@ -124,6 +128,7 @@ function ReleasePanel({
       >
         <div className="subtask-panel-header">
           <div className="subtask-panel-header-content">
+            <CopyableUuid uuid={release.id} />
             <h2 id="release-panel-title" className="subtask-panel-title">
               {release.releaseDate}
             </h2>
