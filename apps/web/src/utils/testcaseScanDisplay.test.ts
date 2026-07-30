@@ -8,6 +8,7 @@ import {
 import {
   formatJenkinsBuildResult,
   formatTestcaseScanResultLabel,
+  getActiveTestcaseScans,
   testcaseScanResultBadgeClassName,
   testcaseScanStatusChipClassName,
 } from './testcaseScanDisplay';
@@ -49,6 +50,17 @@ describe('testcaseScanDisplay', () => {
       ),
       'Scanning',
     );
+  });
+
+  it('returns only scanning records for active card chips', () => {
+    const scans = [
+      scan({ id: 'a', status: TestcaseScanStatus.COMPLETED }),
+      scan({ id: 'b', status: TestcaseScanStatus.SCANNING }),
+      scan({ id: 'c', status: TestcaseScanStatus.FAILED }),
+    ];
+
+    assert.deepEqual(getActiveTestcaseScans(scans).map((s) => s.id), ['b']);
+    assert.deepEqual(getActiveTestcaseScans(undefined), []);
   });
 
   it('maps scan status chip classes', () => {

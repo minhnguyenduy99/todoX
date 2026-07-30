@@ -62,6 +62,15 @@ export function testcaseScanResultBadgeClassName(scan: TestcaseScanDto): string 
   return 'badge-green';
 }
 
+/** Scans still running — shown on compact todo cards. */
+export function getActiveTestcaseScans(
+  scans: TestcaseScanDto[] | undefined,
+): TestcaseScanDto[] {
+  return (scans ?? []).filter(
+    (scan) => scan.status === TestcaseScanStatus.SCANNING,
+  );
+}
+
 export function testcaseScanStatusChipClassName(
   status: TestcaseScanStatus,
 ): string {
