@@ -201,6 +201,34 @@ body {
   cursor: not-allowed;
 }
 
+.todo-search {
+  min-width: 12rem;
+}
+
+.todo-search-input {
+  width: 100%;
+  min-width: 14rem;
+  height: 2.125rem;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0 0.75rem;
+}
+
+.todo-search-input:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 1px;
+}
+
+.todo-search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .service-filter-listbox {
   position: absolute;
   top: calc(100% + 0.25rem);
