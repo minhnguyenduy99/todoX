@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
-    "test": "npx tsx --test src/utils/serviceFilter.test.ts src/utils/activeDeployments.test.ts src/utils/deploymentDisplay.test.ts src/utils/testcaseScanDisplay.test.ts src/utils/markdownSecurity.test.ts src/utils/todoViewMode.test.ts src/hooks/useNotificationTitle.test.ts src/services/todo-search/matchTodo.test.ts src/services/todo-search/localTodoSearchService.test.ts"
+    "test": "npx tsx --test src/utils/serviceFilter.test.ts src/utils/staleTestingFilter.test.ts src/utils/todoDateDisplay.test.ts src/utils/activeDeployments.test.ts src/utils/deploymentDisplay.test.ts src/utils/testcaseScanDisplay.test.ts src/utils/markdownSecurity.test.ts src/utils/todoViewMode.test.ts src/hooks/useNotificationTitle.test.ts src/services/todo-search/matchTodo.test.ts src/services/todo-search/localTodoSearchService.test.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.8",

@@ -89,6 +89,7 @@ model Todo {
   description           String?
   changelog             String?
   status                TodoStatus              @default(NOT_STARTED)
+  statusUpdateDate      DateTime                @default(now()) @map("status_update_date")
   serviceId             String?                 @map("service_id")
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt

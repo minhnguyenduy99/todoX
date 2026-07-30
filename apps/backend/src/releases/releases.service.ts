@@ -17,6 +17,7 @@ import {
   ReleaseDeploymentStatus,
   ReleaseStatus,
   ReleaseType,
+  TodoStatus,
   type CreateReleaseDto,
   type ReleaseDto,
   type UpdateReleaseDto,
@@ -24,6 +25,7 @@ import {
 import { addDeployedEnvironmentToTodo } from '../common/deployed-environments';
 import { extractDeploymentInfo } from '../common/deployment-enrichment';
 import { toMonitorResult, toReleaseDto, toTodoDto } from '../common/mappers';
+import { todoStatusUpdateData } from '../common/todo-status-update';
 import { NON_TERMINAL_RELEASE_STATUSES, TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import {
   aggregateReleaseStatus,
@@ -474,7 +476,7 @@ export class ReleasesService {
 
     await this.prisma.todo.updateMany({
       where: { id: { in: todoIds } },
-      data: { status: 'COMPLETED' },
+      data: todoStatusUpdateData(TodoStatus.COMPLETED),
     });
 
     await this.broadcastTodosUpdated(todoIds);

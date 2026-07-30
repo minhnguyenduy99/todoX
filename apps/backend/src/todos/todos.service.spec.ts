@@ -47,6 +47,7 @@ describe('TodosService', () => {
     title: 'Test Todo',
     description: 'Description',
     status: 'NOT_STARTED',
+    statusUpdateDate: new Date('2025-01-01'),
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     monitor: null,

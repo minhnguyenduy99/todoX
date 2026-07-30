@@ -37,6 +37,7 @@ export function TodoListView({ todos }: TodoListViewProps) {
                     key={todo.id}
                     todo={todo}
                     {...COMPACT_TODO_CARD_PROPS}
+                    cardLayout="list"
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

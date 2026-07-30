@@ -8,6 +8,7 @@ import {
   shouldApplyTodoStatusTransition,
   shouldKeepDeploymentMonitorActiveAfterPoll,
 } from './todo-deployment-status-sync';
+import { todoStatusUpdateData } from './todo-status-update';
 
 /** Apply level-triggered deploy status sync after PR updates or monitor changes. */
 export async function applyTodoDeployStatusReconcile(
@@ -56,7 +57,7 @@ export async function applyTodoDeployStatusReconcile(
   if (nextStatus && shouldApplyTodoStatusTransition(statusAfter, nextStatus)) {
     await prisma.todo.update({
       where: { id: todoId },
-      data: { status: nextStatus },
+      data: todoStatusUpdateData(nextStatus),
     });
     statusAfter = nextStatus;
   }

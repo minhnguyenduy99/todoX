@@ -222,6 +222,7 @@ export interface TodoDto {
   description: string | null;
   changelog: string | null;
   status: TodoStatus;
+  statusUpdateDate: string;
   createdAt: string;
   updatedAt: string;
   service?: ServiceDto | null;

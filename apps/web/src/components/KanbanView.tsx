@@ -36,6 +36,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     key={todo.id}
                     todo={todo}
                     {...COMPACT_TODO_CARD_PROPS}
+                    cardLayout="kanban"
                     onClick={() => setSelectedTodo(todo)}
                   />
                 ))}

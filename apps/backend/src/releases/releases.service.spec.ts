@@ -77,6 +77,7 @@ describe('ReleasesService', () => {
     description: null,
     changelog: null,
     status: 'WAIT_FOR_STAGING',
+    statusUpdateDate: new Date('2026-01-01'),
     serviceId: 'svc-a',
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
@@ -454,7 +455,7 @@ describe('ReleasesService', () => {
 
     expect(prisma.todo.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['todo-a', 'todo-b'] } },
-      data: { status: 'COMPLETED' },
+      data: expect.objectContaining({ status: 'COMPLETED' }),
     });
     expect(prisma.release.update).toHaveBeenCalledWith({
       where: { id: 'rel-1' },
@@ -531,7 +532,7 @@ describe('ReleasesService', () => {
     );
     expect(prisma.todo.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['todo-a'] } },
-      data: { status: 'COMPLETED' },
+      data: expect.objectContaining({ status: 'COMPLETED' }),
     });
   });
 

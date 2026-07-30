@@ -10,6 +10,7 @@ import { ActiveDeploymentsPanel } from './components/ActiveDeploymentsPanel';
 import { SideNav, type AppSection } from './components/SideNav';
 import { ServiceFilterCombobox } from './components/ServiceFilterCombobox';
 import { TodoSearchInput } from './components/TodoSearchInput';
+import { StaleTestingSwitch } from './components/StaleTestingSwitch';
 import { NotificationBell } from './components/NotificationBell';
 import { todoSearchService } from './services/todo-search';
 import {
@@ -18,6 +19,7 @@ import {
   syncServiceFilterToUrl,
   type ServiceFilterValue,
 } from './utils/serviceFilter';
+import { filterTodosStaleInTesting } from './utils/staleTestingFilter';
 import {
   readTodoViewModeFromStorage,
   syncTodoViewModeToStorage,
@@ -33,6 +35,7 @@ export function App() {
     parseServiceFilter(window.location.search),
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [staleTestingOnly, setStaleTestingOnly] = useState(false);
   const connected = useWebSocket();
   const { data: todos, isLoading, error } = useQuery({
     queryKey: ['todos'],
@@ -63,9 +66,14 @@ export function App() {
     [todos, serviceFilter],
   );
 
+  const staleTestingFilteredTodos = useMemo(
+    () => filterTodosStaleInTesting(serviceFilteredTodos, staleTestingOnly),
+    [serviceFilteredTodos, staleTestingOnly],
+  );
+
   const filteredTodos = useMemo(
-    () => todoSearchService.filterTodos(serviceFilteredTodos, searchQuery),
-    [serviceFilteredTodos, searchQuery],
+    () => todoSearchService.filterTodos(staleTestingFilteredTodos, searchQuery),
+    [staleTestingFilteredTodos, searchQuery],
   );
 
   function handleFilterChange(nextFilter: ServiceFilterValue) {
@@ -112,6 +120,11 @@ export function App() {
                 <TodoSearchInput
                   value={searchQuery}
                   onChange={setSearchQuery}
+                  disabled={isLoading}
+                />
+                <StaleTestingSwitch
+                  checked={staleTestingOnly}
+                  onChange={setStaleTestingOnly}
                   disabled={isLoading}
                 />
               </div>
@@ -162,8 +175,14 @@ export function App() {
                 <div className="empty-state">
                   <h2>No todos match your filters</h2>
                   <p>
-                    Try clearing search, selecting <strong>All services</strong>, or choosing
-                    another service.
+                    {staleTestingOnly
+                      ? 'No todos have been in Testing for 3 or more days with the current filters.'
+                      : 'Try clearing search, turning off Testing 3d+, selecting '}
+                    {!staleTestingOnly && (
+                      <>
+                        <strong>All services</strong>, or choosing another service.
+                      </>
+                    )}
                   </p>
                 </div>
               )}

@@ -14,12 +14,13 @@ import {
   resolveTodoServiceInput,
 } from '../common/resolve-todo-service';
 import { toTodoDto } from '../common/mappers';
-import type { CreateTodoDto, TodoDto, UpdateTodoDto } from '@todo-platform/shared-types';
+import type { CreateTodoDto, TodoDto, TodoStatus, UpdateTodoDto } from '@todo-platform/shared-types';
 import type { ListTodosQuery } from '../common/release.dto';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { ReleasesService } from '../releases/releases.service';
 import type { EnvConfig } from '../config/env.validation';
 import { applyTodoDeployStatusReconcile } from '../common/apply-todo-deploy-status-reconcile';
+import { todoStatusUpdateData } from '../common/todo-status-update';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
@@ -134,7 +135,10 @@ export class TodosService {
       serviceKeyName,
     });
 
-    const createData: Prisma.TodoCreateInput = { ...todoData };
+    const createData: Prisma.TodoCreateInput = {
+      ...todoData,
+      statusUpdateDate: new Date(),
+    };
     if (serviceResolution.action === 'connect') {
       createData.service = { connect: { id: serviceResolution.serviceId } };
     }
@@ -193,6 +197,10 @@ export class TodosService {
       data: {
         ...todoData,
         ...(serviceData ?? {}),
+        ...(dto.status !== undefined &&
+        dto.status !== (previous?.status as TodoStatus | undefined)
+          ? todoStatusUpdateData(dto.status)
+          : {}),
       },
     });
 

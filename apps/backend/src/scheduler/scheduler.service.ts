@@ -20,6 +20,7 @@ import {
   shouldApplyTodoStatusTransition,
   shouldKeepDeploymentMonitorActiveAfterPoll,
 } from '../common/todo-deployment-status-sync';
+import { todoStatusUpdateData } from '../common/todo-status-update';
 import {
   deploymentMetaFromConfigAndResult,
 } from '../notifications/notifications.service';
@@ -514,7 +515,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
     await this.prisma.todo.update({
       where: { id: todoId },
-      data: { status },
+      data: todoStatusUpdateData(status),
     });
     await this.broadcastTodoUpdated(todoId);
   }

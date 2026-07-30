@@ -263,6 +263,7 @@ export function toTodoDto(
     description: todo.description,
     changelog: todo.changelog,
     status: todo.status as TodoStatus,
+    statusUpdateDate: todo.statusUpdateDate.toISOString(),
     createdAt: todo.createdAt.toISOString(),
     updatedAt: todo.updatedAt.toISOString(),
     service: todo.service ? toServiceDto(todo.service) : null,

@@ -8,11 +8,13 @@ import { CopyableUuid } from './CopyableUuid';
 import { getActiveTestcaseScans } from '../utils/testcaseScanDisplay';
 import { ServiceBadge } from './ServiceBadge';
 import { MarkdownContent } from './MarkdownContent';
+import { TodoStatusUpdateDate } from './TodoStatusUpdateDate';
 
 interface TodoCardProps {
   todo: TodoDto;
   compact?: boolean;
   compactUuid?: boolean;
+  cardLayout?: 'list' | 'kanban';
   showSubtasks?: boolean;
   showSubtaskCount?: boolean;
   showStatus?: boolean;
@@ -26,6 +28,7 @@ export function TodoCard({
   todo,
   compact = false,
   compactUuid = false,
+  cardLayout,
   showSubtasks = true,
   showSubtaskCount = false,
   showStatus = true,
@@ -59,6 +62,12 @@ export function TodoCard({
           <div className="todo-id-row">
             <CopyableUuid uuid={todo.id} compact={compactUuid} />
             {todo.service && <ServiceBadge service={todo.service} compact={compactUuid} />}
+            {cardLayout === 'kanban' && (
+              <TodoStatusUpdateDate
+                statusUpdateDate={todo.statusUpdateDate}
+                className="todo-status-date-kanban"
+              />
+            )}
           </div>
           <div className="todo-title">{todo.title}</div>
           {showPullRequests && (
@@ -87,6 +96,12 @@ export function TodoCard({
             </div>
           )}
         </div>
+        {cardLayout === 'list' && (
+          <TodoStatusUpdateDate
+            statusUpdateDate={todo.statusUpdateDate}
+            className="todo-status-date-list"
+          />
+        )}
         {showStatus && (
           <span className={`badge ${todoStatusColor(todo.status)}`}>{todo.status}</span>
         )}

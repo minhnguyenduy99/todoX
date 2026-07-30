@@ -14,6 +14,7 @@ const baseTodo = (overrides: Partial<TodoDto> = {}): TodoDto => ({
   description: null,
   changelog: null,
   status: TodoStatus.NOT_STARTED,
+  statusUpdateDate: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   ...overrides,

@@ -6,6 +6,7 @@ import { AssociatedTicketList } from './AssociatedTicketList';
 import { DeployedEnvironmentList } from './DeployedEnvironmentList';
 import { TestcaseScanList } from './TestcaseScanList';
 import { CopyableUuid } from './CopyableUuid';
+import { TodoStatusUpdateDate } from './TodoStatusUpdateDate';
 import { ServiceBadge } from './ServiceBadge';
 import { MarkdownContent } from './MarkdownContent';
 
@@ -39,7 +40,13 @@ export function SubtaskPanel({ todo, onClose }: SubtaskPanelProps) {
       >
         <div className="subtask-panel-header">
           <div className="subtask-panel-header-content">
-            <CopyableUuid uuid={todo.id} />
+            <div className="subtask-panel-id-row">
+              <CopyableUuid uuid={todo.id} />
+              <span className="subtask-panel-id-separator" aria-hidden="true">
+                –
+              </span>
+              <TodoStatusUpdateDate statusUpdateDate={todo.statusUpdateDate} />
+            </div>
             <h2 id="subtask-panel-title" className="subtask-panel-title">
               {todo.title}
             </h2>
