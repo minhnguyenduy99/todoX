@@ -19,6 +19,7 @@ import type { ListTodosQuery } from '../common/release.dto';
 import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { ReleasesService } from '../releases/releases.service';
 import type { EnvConfig } from '../config/env.validation';
+import { applyTodoDeployStatusReconcile } from '../common/apply-todo-deploy-status-reconcile';
 
 const pullRequestInclude = {
   orderBy: { number: 'asc' as const },
@@ -200,6 +201,12 @@ export class TodosService {
     }
 
     await syncPullRequests(this.prisma, { todoId: id }, pullRequests);
+    if (pullRequests !== undefined) {
+      await applyTodoDeployStatusReconcile(this.prisma, id, {
+        disableMonitors: (monitorId) =>
+          this.monitorsService.disableAndUnschedule(monitorId),
+      });
+    }
     await syncAssociatedTickets(this.prisma, id, associatedTickets);
     await syncTestcaseScans(
       this.prisma,

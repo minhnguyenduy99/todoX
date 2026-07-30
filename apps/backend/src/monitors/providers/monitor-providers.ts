@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '../../config/env.validation';
 import { normalizeDeploymentMonitorConfig } from '../../common/parse-jenkins-job-url';
 import { fetchJenkinsJobLastBuild } from '../../jenkins/jenkins-last-build';
+import { fetchJenkinsPipelineStage } from '../../jenkins/jenkins-pipeline-stage';
 import { parseJenkinsJobUrl } from '../../common/parse-jenkins-job-url';
 
 @Injectable()
@@ -152,6 +153,7 @@ export function parseJobNameFromUrl(jobUrl: string): string {
 export function mapJenkinsBuildToDeployment(
   cfg: DeploymentMonitorConfig,
   build: JenkinsBuildResponse,
+  currentStep?: string | null,
 ): { deployment: DeploymentInfo; monitorStatus: MonitorResultStatus } {
   let deploymentStatus: DeploymentStatus;
   let monitorStatus: MonitorResultStatus;
@@ -182,6 +184,7 @@ export function mapJenkinsBuildToDeployment(
     status: deploymentStatus,
     buildUrl: build.url,
     timestamp: build.timestamp,
+    ...(currentStep ? { currentStep } : {}),
   };
 
   return { deployment, monitorStatus };
@@ -269,7 +272,15 @@ export class DeploymentMonitorProvider implements MonitorProvider {
       }
 
       const build = (await response.json()) as JenkinsBuildResponse;
-      const { deployment, monitorStatus } = mapJenkinsBuildToDeployment(cfg, build);
+      let currentStep: string | null = null;
+      if (build.building) {
+        currentStep = await fetchJenkinsPipelineStage(jobUrl, cfg.buildNumber, auth);
+      }
+      const { deployment, monitorStatus } = mapJenkinsBuildToDeployment(
+        cfg,
+        build,
+        currentStep,
+      );
 
       const statusLabel =
         deployment.status === DeploymentStatus.IN_PROGRESS

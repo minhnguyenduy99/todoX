@@ -13,6 +13,15 @@ export function formatDeploymentDuration(durationMs: number | null): string | nu
   return `${minutes}m ${seconds}s`;
 }
 
+export function formatDeploymentCurrentStep(
+  status: DeploymentStatus,
+  currentStep?: string | null,
+): string | null {
+  if (status !== DeploymentStatus.IN_PROGRESS) return null;
+  const trimmed = currentStep?.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function resolveDeploymentDurationMs(
   durationMs: number | null,
   status: DeploymentStatus,

@@ -22,8 +22,9 @@ import {
   type UpdateReleaseDto,
 } from '@todo-platform/shared-types';
 import { addDeployedEnvironmentToTodo } from '../common/deployed-environments';
-import { toReleaseDto, toTodoDto } from '../common/mappers';
-import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
+import { extractDeploymentInfo } from '../common/deployment-enrichment';
+import { toMonitorResult, toReleaseDto, toTodoDto } from '../common/mappers';
+import { NON_TERMINAL_RELEASE_STATUSES, TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import {
   aggregateReleaseStatus,
   resolveServiceOutcomes,
@@ -332,9 +333,18 @@ export class ReleasesService {
   ): Promise<void> {
     const deployment = await this.prisma.releaseDeployment.findUnique({
       where: { id: releaseDeploymentId },
-      include: { release: true, service: true },
+      include: { release: true, service: true, monitor: true },
     });
     if (!deployment) return;
+
+    if (TERMINAL_RELEASE_STATUSES.includes(deployment.release.status)) {
+      const recoveringFailedRelease =
+        deployment.release.status === PrismaReleaseStatus.failed &&
+        nextStatus !== ReleaseDeploymentStatus.FAILED;
+      if (!recoveringFailedRelease) {
+        return;
+      }
+    }
 
     await this.prisma.releaseDeployment.update({
       where: { id: releaseDeploymentId },
@@ -372,6 +382,10 @@ export class ReleasesService {
           deployment.serviceId,
         );
       }
+    }
+
+    if (deployment.release.type === 'staging') {
+      await this.backfillMemberTodoStagingMonitorFromRelease(deployment);
     }
 
     await this.reaggregateAndBroadcast(deployment.releaseId);
@@ -467,11 +481,27 @@ export class ReleasesService {
   }
 
   /** Copy release deployment monitor poll results onto member todo staging monitors. */
+  async backfillMemberTodoStagingMonitorsForRelease(releaseId: string): Promise<void> {
+    const deployments = await this.prisma.releaseDeployment.findMany({
+      where: { releaseId },
+      include: { monitor: true },
+    });
+    for (const deployment of deployments) {
+      await this.backfillMemberTodoStagingMonitorFromRelease(deployment);
+    }
+  }
+
+  /** Copy release deployment monitor poll results onto member todo staging monitors. */
   private async backfillMemberTodoStagingMonitorFromRelease(
     deployment: Prisma.ReleaseDeploymentGetPayload<{ include: { monitor: true } }>,
   ): Promise<void> {
     const releaseMonitor = deployment.monitor;
     if (!releaseMonitor?.lastResult) return;
+
+    const deploymentInfo = extractDeploymentInfo(
+      toMonitorResult(releaseMonitor.lastResult),
+    );
+    if (!deploymentInfo) return;
 
     const members = await this.prisma.releaseMember.findMany({
       where: { releaseId: deployment.releaseId },
@@ -487,6 +517,10 @@ export class ReleasesService {
         where: { todoId: member.todoId, envKey: 'staging' },
       });
       if (!todoMonitor) continue;
+
+      if (todoMonitor.enabled) {
+        await this.monitorsService.disableAndUnschedule(todoMonitor.id);
+      }
 
       await this.prisma.monitor.update({
         where: { id: todoMonitor.id },
@@ -623,11 +657,25 @@ export class ReleasesService {
 
     const nextReleaseStatus = aggregateReleaseStatus(memberServiceIds, outcomes);
 
+    const previousReleaseStatus = release.status;
+
     const updated = await this.prisma.release.update({
       where: { id: releaseId },
       data: { status: nextReleaseStatus },
       include: releaseInclude,
     });
+
+    if (
+      !TERMINAL_RELEASE_STATUSES.includes(previousReleaseStatus) &&
+      TERMINAL_RELEASE_STATUSES.includes(nextReleaseStatus)
+    ) {
+      await this.disableMonitorsForRelease(releaseId);
+    } else if (
+      previousReleaseStatus === PrismaReleaseStatus.failed &&
+      !TERMINAL_RELEASE_STATUSES.includes(nextReleaseStatus)
+    ) {
+      await this.enableMonitorsForRelease(releaseId);
+    }
 
     const dto = toReleaseDto(updated);
     this.events.broadcast('release.updated', dto);
@@ -827,7 +875,7 @@ export class ReleasesService {
     const monitorPayload = {
       type: MonitorType.DEPLOYMENT,
       cron: DEFAULT_DEPLOY_CRON,
-      enabled: true,
+      enabled: false,
       config: {
         env: 'staging' as const,
         jobUrl,
@@ -856,6 +904,40 @@ export class ReleasesService {
     }
 
     await this.broadcastTodosUpdated(touchedTodoIds);
+  }
+
+  private async disableMonitorsForRelease(releaseId: string): Promise<void> {
+    const deployments = await this.prisma.releaseDeployment.findMany({
+      where: { releaseId },
+      include: { monitor: true },
+    });
+    for (const deployment of deployments) {
+      if (deployment.monitor?.enabled) {
+        await this.monitorsService.disableAndUnschedule(deployment.monitor.id);
+      }
+    }
+
+    const discovery = await this.prisma.monitor.findUnique({ where: { releaseId } });
+    if (discovery?.enabled) {
+      await this.monitorsService.disableAndUnschedule(discovery.id);
+    }
+  }
+
+  private async enableMonitorsForRelease(releaseId: string): Promise<void> {
+    const deployments = await this.prisma.releaseDeployment.findMany({
+      where: { releaseId },
+      include: { monitor: true },
+    });
+    for (const deployment of deployments) {
+      if (deployment.monitor && !deployment.monitor.enabled) {
+        await this.monitorsService.update(deployment.monitor.id, { enabled: true });
+      }
+    }
+
+    const discovery = await this.prisma.monitor.findUnique({ where: { releaseId } });
+    if (discovery && !discovery.enabled) {
+      await this.monitorsService.update(discovery.id, { enabled: true });
+    }
   }
 
   private async broadcastTodosUpdated(todoIds: string[]): Promise<void> {

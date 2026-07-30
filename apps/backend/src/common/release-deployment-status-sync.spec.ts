@@ -1,4 +1,5 @@
 import {
+  DeploymentStatus,
   MonitorResultStatus,
   ReleaseDeploymentStatus,
   ReleaseStatus,
@@ -24,7 +25,10 @@ describe('release-deployment-status-sync', () => {
       expect(
         mapMonitorResultToDeploymentStatus({
           status: MonitorResultStatus.FAILED,
-          message: 'fail',
+          message: 'Deployment to staging build #52 failed',
+          metadata: {
+            deployment: { status: DeploymentStatus.FAIL },
+          },
         }),
       ).toBe(ReleaseDeploymentStatus.FAILED);
       expect(
@@ -36,6 +40,28 @@ describe('release-deployment-status-sync', () => {
       expect(mapMonitorResultToDeploymentStatus(null)).toBe(
         ReleaseDeploymentStatus.PENDING,
       );
+    });
+
+    it('returns null for Jenkins poll errors', () => {
+      expect(
+        mapMonitorResultToDeploymentStatus({
+          status: MonitorResultStatus.FAILED,
+          message: 'Jenkins API returned 403',
+          metadata: { statusCode: 403 },
+        }),
+      ).toBeNull();
+    });
+
+    it('still maps real Jenkins build failures', () => {
+      expect(
+        mapMonitorResultToDeploymentStatus({
+          status: MonitorResultStatus.FAILED,
+          message: 'Deployment to staging build #52 failed',
+          metadata: {
+            deployment: { status: DeploymentStatus.FAIL },
+          },
+        }),
+      ).toBe(ReleaseDeploymentStatus.FAILED);
     });
   });
 

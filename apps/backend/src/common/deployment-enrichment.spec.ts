@@ -84,6 +84,25 @@ describe('deployment-enrichment', () => {
       expect(result[0].deployment).toEqual(deployment);
     });
 
+    it('passes through currentStep from monitor metadata', () => {
+      const result = enrichDeployedEnvironments(
+        [baseEnv],
+        [
+          makeMonitor({
+            lastResult: {
+              status: MonitorResultStatus.RUNNING,
+              message: 'in progress',
+              metadata: {
+                deployment: { ...deployment, currentStep: 'Deploy to UAT' },
+              },
+            },
+          }),
+        ],
+        toBaseDto,
+      );
+      expect(result[0].deployment?.currentStep).toBe('Deploy to UAT');
+    });
+
     it('leaves chip without deployment when no matching monitor', () => {
       const result = enrichDeployedEnvironments([baseEnv], [], toBaseDto);
       expect(result[0].deployment).toBeUndefined();
@@ -96,6 +115,26 @@ describe('deployment-enrichment', () => {
         toBaseDto,
       );
       expect(result[0].deployment).toBeUndefined();
+    });
+
+    it('enriches from disabled monitors using lastResult (terminal deploy display)', () => {
+      const result = enrichDeployedEnvironments(
+        [baseEnv],
+        [
+          makeMonitor({
+            enabled: false,
+            lastResult: {
+              status: MonitorResultStatus.SUCCESS,
+              message: 'done',
+              metadata: {
+                deployment: { ...deployment, status: DeploymentStatus.SUCCESS },
+              },
+            },
+          }),
+        ],
+        toBaseDto,
+      );
+      expect(result[0].deployment?.status).toBe(DeploymentStatus.SUCCESS);
     });
 
     it('matches chip by monitor config env, not lastResult env', () => {

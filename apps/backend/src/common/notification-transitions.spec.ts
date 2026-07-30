@@ -1,4 +1,5 @@
 import {
+  DeploymentStatus,
   MonitorResultStatus,
   ReleaseDeploymentStatus,
   SubtaskStatus,
@@ -26,7 +27,13 @@ describe('notification-transitions', () => {
       expect(
         isFirstMonitorTerminalTransition(
           { status: MonitorResultStatus.RUNNING, message: 'running' },
-          { status: MonitorResultStatus.FAILED, message: 'fail' },
+          {
+            status: MonitorResultStatus.FAILED,
+            message: 'Deployment to staging build #52 failed',
+            metadata: {
+              deployment: { status: DeploymentStatus.FAIL },
+            },
+          },
         ),
       ).toBe('failure');
     });
@@ -45,6 +52,19 @@ describe('notification-transitions', () => {
         isFirstMonitorTerminalTransition(
           { status: MonitorResultStatus.RUNNING, message: 'running' },
           { status: MonitorResultStatus.RUNNING, message: 'running' },
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null for Jenkins poll errors', () => {
+      expect(
+        isFirstMonitorTerminalTransition(
+          { status: MonitorResultStatus.RUNNING, message: 'running' },
+          {
+            status: MonitorResultStatus.FAILED,
+            message: 'Jenkins API returned 403',
+            metadata: { statusCode: 403 },
+          },
         ),
       ).toBeNull();
     });
@@ -84,6 +104,15 @@ describe('notification-transitions', () => {
       expect(
         isReleaseDeploymentTerminalTransition(
           ReleaseDeploymentStatus.SUCCESSFUL,
+          ReleaseDeploymentStatus.SUCCESSFUL,
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null when leaving failed for successful (poll flapping)', () => {
+      expect(
+        isReleaseDeploymentTerminalTransition(
+          ReleaseDeploymentStatus.FAILED,
           ReleaseDeploymentStatus.SUCCESSFUL,
         ),
       ).toBeNull();

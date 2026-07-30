@@ -99,6 +99,31 @@ describe('collectTodayServiceDeployments', () => {
     assert.equal(rows[0]?.buildNumber, 42);
   });
 
+  it('maps currentStep from deployment metadata', () => {
+    const todos = [
+      baseTodo({
+        service: baseService(),
+        deployedEnvironments: [
+          env({
+            name: DeployedEnvironmentName.DEV,
+            deployment: {
+              env: DeployedEnvironmentName.DEV,
+              jobName: 'billing-dev',
+              buildNumber: 7,
+              durationMs: null,
+              status: DeploymentStatus.IN_PROGRESS,
+              currentStep: 'Deploy',
+              timestamp: todayTs,
+            },
+          }),
+        ],
+      }),
+    ];
+
+    const rows = collectTodayServiceDeployments(todos, now);
+    assert.equal(rows[0]?.currentStep, 'Deploy');
+  });
+
   it('excludes deployments from before today', () => {
     const todos = [
       baseTodo({

@@ -28,7 +28,7 @@ export function extractDeploymentInfo(
 }
 
 function isDeploymentMonitor(monitor: MonitorDto): boolean {
-  return monitor.type === MonitorType.DEPLOYMENT && monitor.enabled;
+  return monitor.type === MonitorType.DEPLOYMENT;
 }
 
 function deploymentFromMonitor(

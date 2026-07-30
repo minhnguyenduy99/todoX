@@ -7,6 +7,7 @@ import {
 import { sortDeploymentsForDisplay } from '../utils/deploymentSort';
 import {
   todoDeployedEnvironmentChipClassName,
+  formatDeploymentCurrentStep,
   formatDeploymentDuration,
   resolveDeploymentDurationMs,
 } from '../utils/deploymentDisplay';
@@ -44,6 +45,8 @@ function buildChipTitle(env: DeployedEnvironmentDto): string {
     `Build #${deployment.buildNumber}`,
     `Status: ${deployment.status}`,
   ];
+  const currentStep = formatDeploymentCurrentStep(deployment.status, deployment.currentStep);
+  if (currentStep) parts.push(`Stage: ${currentStep}`);
   const duration = formatDuration(deployment);
   if (duration) parts.push(`Duration: ${duration}`);
   if (deployment.buildUrl) parts.push(deployment.buildUrl);
@@ -69,23 +72,43 @@ function EnvChipContent({
   deployment: DeployedEnvironmentDto['deployment'];
   duration: string | null;
 }) {
+  const currentStep = deployment
+    ? formatDeploymentCurrentStep(deployment.status, deployment.currentStep)
+    : null;
+
   return (
     <>
-      <span
-        className={`env-chip-label${deployment?.status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
-      >
-        {env.name}
+      <span className="env-chip-row">
+        <span
+          className={`env-chip-label${deployment?.status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
+        >
+          {env.name}
+        </span>
+        {deployment && (
+          <span className="env-chip-meta">
+            {deployment.status === DeploymentStatus.IN_PROGRESS && (
+              <span className="env-chip-spinner" aria-hidden="true" />
+            )}
+            <span className="env-chip-build">#{deployment.buildNumber}</span>
+            {duration && <span className="env-chip-duration">{duration}</span>}
+          </span>
+        )}
       </span>
-      {deployment && (
-        <span className="env-chip-meta">
-          {deployment.status === DeploymentStatus.IN_PROGRESS && (
-            <span className="env-chip-spinner" aria-hidden="true" />
-          )}
-          <span className="env-chip-build">#{deployment.buildNumber}</span>
-          {duration && <span className="env-chip-duration">{duration}</span>}
+      {currentStep && (
+        <span className="env-chip-step" title={currentStep}>
+          {currentStep}
         </span>
       )}
     </>
+  );
+}
+
+function chipHasCurrentStep(
+  deployment: DeployedEnvironmentDto['deployment'],
+): boolean {
+  return Boolean(
+    deployment &&
+      formatDeploymentCurrentStep(deployment.status, deployment.currentStep),
   );
 }
 
@@ -142,7 +165,9 @@ export function DeployedEnvironmentList({
         {sorted.map((env) => {
           const deployment = env.deployment;
           const duration = formatDuration(deployment);
-          const rowClassName = `deployment-line env-chip ${resolveChipClassName(deployment)}`;
+          const rowClassName = `deployment-line env-chip ${resolveChipClassName(deployment)}${
+            chipHasCurrentStep(deployment) ? ' env-chip-has-step' : ''
+          }`;
 
           return (
             <EnvChip
@@ -167,7 +192,9 @@ export function DeployedEnvironmentList({
       {sorted.map((env) => {
         const deployment = env.deployment;
         const duration = formatDuration(deployment);
-        const chipClassName = `env-chip ${resolveChipClassName(deployment)}`;
+        const chipClassName = `env-chip ${resolveChipClassName(deployment)}${
+          chipHasCurrentStep(deployment) ? ' env-chip-has-step' : ''
+        }`;
 
         return (
           <EnvChip

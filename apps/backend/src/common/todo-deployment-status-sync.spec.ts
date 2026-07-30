@@ -1,14 +1,19 @@
 import {
   DeployedEnvironmentName,
+  DeploymentStatus,
   MonitorResultStatus,
   MonitorType,
   type MonitorResult,
 } from '@todo-platform/shared-types';
 import {
+  areAllAssociatedPullRequestsMerged,
   isUatDeploymentMonitor,
   isTodoStatusSyncSuppressedForDeploymentMonitor,
+  reconcileTodoStatusFromDeploymentMonitors,
+  resolveTodoStatusFromSuccessfulDeployPoll,
   resolveTodoStatusOnDeploySuccess,
   shouldApplyTodoStatusTransition,
+  shouldKeepDeploymentMonitorActiveAfterPoll,
   shouldSetTodoTestingOnDeployResult,
   shouldSetTodoWaitForStagingOnDeployResult,
 } from './todo-deployment-status-sync';
@@ -28,7 +33,15 @@ describe('todo-deployment-status-sync', () => {
   };
 
   const success: MonitorResult = { status: MonitorResultStatus.SUCCESS, message: 'ok' };
+  const failed: MonitorResult = {
+    status: MonitorResultStatus.FAILED,
+    message: 'Deployment failed',
+    metadata: { deployment: { status: DeploymentStatus.FAIL } },
+  };
   const running: MonitorResult = { status: MonitorResultStatus.RUNNING, message: 'running' };
+
+  const mergedPr = [{ status: 'merged' }];
+  const openPr = [{ status: 'open' }];
 
   describe('isUatDeploymentMonitor', () => {
     it('returns true for deployment monitor targeting uat', () => {
@@ -119,6 +132,20 @@ describe('todo-deployment-status-sync', () => {
     });
   });
 
+  describe('areAllAssociatedPullRequestsMerged', () => {
+    it('returns true when every PR is merged', () => {
+      expect(areAllAssociatedPullRequestsMerged([{ status: 'merged' }])).toBe(true);
+    });
+
+    it('returns false when any PR is open', () => {
+      expect(areAllAssociatedPullRequestsMerged(openPr)).toBe(false);
+    });
+
+    it('returns true when there are no PRs', () => {
+      expect(areAllAssociatedPullRequestsMerged([])).toBe(true);
+    });
+  });
+
   describe('isTodoStatusSyncSuppressedForDeploymentMonitor', () => {
     it('returns true when suppressTodoStatusSync is set', () => {
       expect(
@@ -160,36 +187,195 @@ describe('todo-deployment-status-sync', () => {
     });
   });
 
-  describe('resolveTodoStatusOnDeploySuccess', () => {
-    it('returns TESTING for uat', () => {
+  describe('resolveTodoStatusFromSuccessfulDeployPoll', () => {
+    it('returns TESTING for uat on any successful poll while behind', () => {
       expect(
-        resolveTodoStatusOnDeploySuccess(
-          running,
+        resolveTodoStatusFromSuccessfulDeployPoll(
           success,
           MonitorType.DEPLOYMENT,
           uatConfig,
+          TodoStatus.IN_PROGRESS,
+          openPr,
         ),
       ).toBe(TodoStatus.TESTING);
     });
 
-    it('returns WAIT_FOR_STAGING for uat-main', () => {
+    it('retries uat-main on repeated success polls while still TESTING', () => {
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          mergedPr,
+        ),
+      ).toBe(TodoStatus.WAIT_FOR_STAGING);
+    });
+
+    it('blocks uat-main advance when PRs are not merged', () => {
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          openPr,
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null when already at target status', () => {
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.WAIT_FOR_STAGING,
+          mergedPr,
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null for dev deployment', () => {
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          { ...uatConfig, env: DeployedEnvironmentName.DEV },
+          TodoStatus.IN_PROGRESS,
+          mergedPr,
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null when poll is not successful', () => {
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          running,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          mergedPr,
+        ),
+      ).toBeNull();
+    });
+  });
+
+  describe('resolveTodoStatusOnDeploySuccess', () => {
+    it('delegates to level-triggered resolver with PR gating', () => {
       expect(
         resolveTodoStatusOnDeploySuccess(
           running,
           success,
           MonitorType.DEPLOYMENT,
           uatMainConfig,
+          TodoStatus.TESTING,
+          mergedPr,
+        ),
+      ).toBe(TodoStatus.WAIT_FOR_STAGING);
+    });
+  });
+
+  describe('shouldKeepDeploymentMonitorActiveAfterPoll', () => {
+    it('keeps polling while build is running', () => {
+      expect(
+        shouldKeepDeploymentMonitorActiveAfterPoll(
+          running,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          openPr,
+        ),
+      ).toBe(true);
+    });
+
+    it('keeps polling after success while PRs block uat-main advance', () => {
+      expect(
+        shouldKeepDeploymentMonitorActiveAfterPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          openPr,
+        ),
+      ).toBe(true);
+    });
+
+    it('stops polling after success once uat-main status is applied', () => {
+      expect(
+        shouldKeepDeploymentMonitorActiveAfterPoll(
+          success,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.WAIT_FOR_STAGING,
+          mergedPr,
+        ),
+      ).toBe(false);
+    });
+
+    it('stops polling after failed deploy', () => {
+      expect(
+        shouldKeepDeploymentMonitorActiveAfterPoll(
+          failed,
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          mergedPr,
+        ),
+      ).toBe(false);
+    });
+
+    it('keeps polling after Jenkins poll errors', () => {
+      expect(
+        shouldKeepDeploymentMonitorActiveAfterPoll(
+          {
+            status: MonitorResultStatus.FAILED,
+            message: 'Jenkins API returned 403',
+            metadata: { statusCode: 403 },
+          },
+          MonitorType.DEPLOYMENT,
+          uatMainConfig,
+          TodoStatus.TESTING,
+          mergedPr,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe('reconcileTodoStatusFromDeploymentMonitors', () => {
+    it('picks the highest applicable target from multiple monitors', () => {
+      expect(
+        reconcileTodoStatusFromDeploymentMonitors(
+          TodoStatus.IN_PROGRESS,
+          mergedPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatConfig,
+              lastResult: success,
+            },
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatMainConfig,
+              lastResult: success,
+            },
+          ],
         ),
       ).toBe(TodoStatus.WAIT_FOR_STAGING);
     });
 
-    it('returns null for dev deployment', () => {
+    it('returns null when uat-main succeeded but PRs are open', () => {
       expect(
-        resolveTodoStatusOnDeploySuccess(
-          running,
-          success,
-          MonitorType.DEPLOYMENT,
-          { ...uatConfig, env: DeployedEnvironmentName.DEV },
+        reconcileTodoStatusFromDeploymentMonitors(
+          TodoStatus.TESTING,
+          openPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatMainConfig,
+              lastResult: success,
+            },
+          ],
         ),
       ).toBeNull();
     });

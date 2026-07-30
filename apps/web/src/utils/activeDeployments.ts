@@ -13,6 +13,7 @@ export type ActiveDeploymentRow = {
   environment: DeployedEnvironmentName;
   status: DeploymentStatus;
   buildNumber: number;
+  currentStep?: string | null;
   durationMs: number | null;
   timestamp?: number;
   buildUrl?: string;
@@ -82,6 +83,7 @@ function rowFromEnv(todo: TodoDto, env: DeployedEnvironmentDto): ActiveDeploymen
     environment: env.name,
     status: deployment.status,
     buildNumber: deployment.buildNumber,
+    currentStep: deployment.currentStep,
     durationMs: deployment.durationMs,
     timestamp: deployment.timestamp,
     buildUrl: deployment.buildUrl,

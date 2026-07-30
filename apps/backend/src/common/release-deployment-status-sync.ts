@@ -4,11 +4,13 @@ import {
   ReleaseStatus,
   type MonitorResult,
 } from '@todo-platform/shared-types';
+import { isDeploymentMonitorPollError } from './monitor-poll-error';
 
 export function mapMonitorResultToDeploymentStatus(
   result: MonitorResult | null,
-): ReleaseDeploymentStatus {
+): ReleaseDeploymentStatus | null {
   if (!result) return ReleaseDeploymentStatus.PENDING;
+  if (isDeploymentMonitorPollError(result)) return null;
   switch (result.status) {
     case MonitorResultStatus.SUCCESS:
       return ReleaseDeploymentStatus.SUCCESSFUL;

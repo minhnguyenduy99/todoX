@@ -30,6 +30,7 @@ describe('ReleasesService', () => {
     };
     releaseDeployment: {
       create: jest.Mock;
+      findMany: jest.Mock;
       findUnique: jest.Mock;
       upsert: jest.Mock;
       updateMany: jest.Mock;
@@ -59,6 +60,7 @@ describe('ReleasesService', () => {
     update: jest.Mock;
     createForTodo: jest.Mock;
     upsertForTodo: jest.Mock;
+    disableAndUnschedule: jest.Mock;
   };
 
   const serviceA = {
@@ -121,6 +123,7 @@ describe('ReleasesService', () => {
       },
       releaseDeployment: {
         create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
         upsert: jest.fn(),
         updateMany: jest.fn(),
@@ -150,6 +153,7 @@ describe('ReleasesService', () => {
       update: jest.fn(),
       createForTodo: jest.fn(),
       upsertForTodo: jest.fn(),
+      disableAndUnschedule: jest.fn(),
     };
     const releaseDeploymentDiscovery = {
       maybeStartDiscoveryMonitor: jest.fn(),
@@ -474,7 +478,18 @@ describe('ReleasesService', () => {
       jobUrl: 'https://jenkins/job/staging',
       buildNumber: 166,
       monitor: {
-        lastResult: { status: 'success', message: 'ok' },
+        lastResult: {
+          status: 'success',
+          message: 'ok',
+          metadata: {
+            deployment: {
+              env: 'staging',
+              jobName: 'staging-job',
+              buildNumber: 166,
+              status: 'success',
+            },
+          },
+        },
         lastRunAt: new Date('2026-07-24T08:35:00Z'),
       },
     });
@@ -505,7 +520,12 @@ describe('ReleasesService', () => {
       expect.objectContaining({
         where: { id: 'mon-todo-a' },
         data: expect.objectContaining({
-          lastResult: { status: 'success', message: 'ok' },
+          lastResult: expect.objectContaining({
+            status: 'success',
+            metadata: expect.objectContaining({
+              deployment: expect.objectContaining({ buildNumber: 166 }),
+            }),
+          }),
         }),
       }),
     );

@@ -175,7 +175,8 @@ export class MonitorsService {
       await this.scheduler.scheduleMonitor(monitor.id, monitor.cron);
       if (
         dto.type === MonitorType.TESTCASE_SCAN ||
-        dto.type === MonitorType.DEPLOYMENT_DISCOVERY
+        dto.type === MonitorType.DEPLOYMENT_DISCOVERY ||
+        dto.type === MonitorType.DEPLOYMENT
       ) {
         this.scheduler.runMonitorNow(monitor.id);
       }

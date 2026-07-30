@@ -5,6 +5,7 @@ import {
   TestcaseScanStatus,
   type MonitorResult,
 } from '@todo-platform/shared-types';
+import { isDeploymentMonitorPollError } from './monitor-poll-error';
 import { isTerminalTestcaseScanStatus } from './testcase-scan-status-sync';
 
 export type TerminalOutcome = 'success' | 'failure';
@@ -13,6 +14,7 @@ export function isFirstMonitorTerminalTransition(
   previous: MonitorResult | null,
   next: MonitorResult,
 ): TerminalOutcome | null {
+  if (isDeploymentMonitorPollError(next)) return null;
   const isTerminal =
     next.status === MonitorResultStatus.SUCCESS ||
     next.status === MonitorResultStatus.FAILED;
@@ -36,6 +38,13 @@ export function isReleaseDeploymentTerminalTransition(
   next: ReleaseDeploymentStatus,
 ): TerminalOutcome | null {
   if (previous === next) return null;
+  // Ignore poll flapping after a deployment already reached a terminal state.
+  if (
+    previous === ReleaseDeploymentStatus.SUCCESSFUL ||
+    previous === ReleaseDeploymentStatus.FAILED
+  ) {
+    return null;
+  }
   if (next === ReleaseDeploymentStatus.SUCCESSFUL) return 'success';
   if (next === ReleaseDeploymentStatus.FAILED) return 'failure';
   return null;

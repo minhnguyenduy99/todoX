@@ -7,6 +7,7 @@ import {
 } from '@todo-platform/shared-types';
 import {
   deploymentStatusChipClassName,
+  formatDeploymentCurrentStep,
   formatDeploymentDuration,
   releaseDeploymentStatusChipClassName,
   resolveDeploymentDurationMs,
@@ -20,6 +21,18 @@ describe('deploymentDisplay', () => {
     assert.equal(formatDeploymentDuration(null), null);
     assert.equal(formatDeploymentDuration(45_000), '45s');
     assert.equal(formatDeploymentDuration(125_000), '2m 5s');
+  });
+
+  it('formats current step only for in-progress deployments', () => {
+    assert.equal(
+      formatDeploymentCurrentStep(DeploymentStatus.IN_PROGRESS, ' Deploy '),
+      'Deploy',
+    );
+    assert.equal(
+      formatDeploymentCurrentStep(DeploymentStatus.SUCCESS, 'Deploy'),
+      null,
+    );
+    assert.equal(formatDeploymentCurrentStep(DeploymentStatus.IN_PROGRESS, '   '), null);
   });
 
   it('derives elapsed duration from timestamp for in-progress builds', () => {

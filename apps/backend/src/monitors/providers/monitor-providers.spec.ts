@@ -169,16 +169,30 @@ describe('DeploymentMonitorProvider', () => {
 
   it('returns running when Jenkins build is in progress', async () => {
     const provider = createProvider('dG9rZW4=');
-    jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        building: true,
-        result: null,
-        duration: 0,
-        timestamp: 1784521296700,
-        url: 'https://jenkins.example.net/job/my-job/2790/',
-      }),
-    } as Response);
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/wfapi/describe')) {
+        return {
+          ok: true,
+          json: async () => ({
+            stages: [
+              { name: 'Build', status: 'SUCCESS' },
+              { name: 'Deploy to UAT', status: 'IN_PROGRESS' },
+            ],
+          }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          building: true,
+          result: null,
+          duration: 0,
+          timestamp: 1784521296700,
+          url: 'https://jenkins.example.net/job/my-job/2790/',
+        }),
+      } as Response;
+    });
 
     const result = await provider.check(cfg);
     expect(result.status).toBe(MonitorResultStatus.RUNNING);
@@ -186,12 +200,45 @@ describe('DeploymentMonitorProvider', () => {
       env: DeployedEnvironmentName.DEV,
       buildNumber: 2790,
       status: DeploymentStatus.IN_PROGRESS,
+      currentStep: 'Deploy to UAT',
     });
+  });
+
+  it('returns running without currentStep when wfapi is unavailable', async () => {
+    const provider = createProvider('dG9rZW4=');
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/wfapi/describe')) {
+        return {
+          ok: false,
+          status: 404,
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          building: true,
+          result: null,
+          duration: 0,
+          timestamp: 1784521296700,
+          url: 'https://jenkins.example.net/job/my-job/2790/',
+        }),
+      } as Response;
+    });
+
+    const result = await provider.check(cfg);
+    expect(result.status).toBe(MonitorResultStatus.RUNNING);
+    expect(result.metadata?.deployment).toMatchObject({
+      status: DeploymentStatus.IN_PROGRESS,
+    });
+    expect(
+      (result.metadata?.deployment as { currentStep?: string }).currentStep,
+    ).toBeUndefined();
   });
 
   it('returns success when Jenkins build succeeded', async () => {
     const provider = createProvider('dG9rZW4=');
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         building: false,
@@ -208,6 +255,7 @@ describe('DeploymentMonitorProvider', () => {
       status: DeploymentStatus.SUCCESS,
       durationMs: 2303459,
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns failed when Jenkins build failed', async () => {

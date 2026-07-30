@@ -92,6 +92,8 @@ export interface DeploymentInfo {
   status: DeploymentStatus;
   buildUrl?: string;
   timestamp?: number;
+  /** Current Jenkins pipeline stage name while in progress; omitted when unknown or terminal. */
+  currentStep?: string | null;
 }
 
 export interface DeployedEnvironmentDto {

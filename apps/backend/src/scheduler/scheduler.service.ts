@@ -16,8 +16,9 @@ import { MonitorProviderRegistry } from '../monitors/providers/monitor-provider.
 import { toMonitorDto, toMonitorResult, toSubtaskDto, toTodoDto } from '../common/mappers';
 import {
   isTodoStatusSyncSuppressedForDeploymentMonitor,
-  resolveTodoStatusOnDeploySuccess,
+  resolveTodoStatusFromSuccessfulDeployPoll,
   shouldApplyTodoStatusTransition,
+  shouldKeepDeploymentMonitorActiveAfterPoll,
 } from '../common/todo-deployment-status-sync';
 import {
   deploymentMetaFromConfigAndResult,
@@ -27,8 +28,9 @@ import {
   isSubtaskTerminalTransition,
   isTestcaseScanTerminalTransition,
 } from '../common/notification-transitions';
-import { NON_TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
+import { NON_TERMINAL_RELEASE_STATUSES, TERMINAL_RELEASE_STATUSES } from '../common/release-constants';
 import { mapMonitorResultToDeploymentStatus } from '../common/release-deployment-status-sync';
+import { isDeploymentMonitorPollError } from '../common/monitor-poll-error';
 import {
   isTerminalTestcaseScanStatus,
   mapMonitorResultToTestcaseScanBuildResult,
@@ -38,6 +40,7 @@ import {
   MonitorResultStatus,
   MonitorType,
   ReleaseDeploymentStatus,
+  ReleaseStatus,
   SubtaskStatus,
   TodoStatus,
   TestcaseScanStatus,
@@ -131,11 +134,95 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async loadExistingMonitors(): Promise<void> {
+    await this.recoverReleaseDeploymentsFromPollErrors();
+    await this.backfillActiveReleaseTodoStagingMonitors();
+    await this.disableMonitorsForTerminalReleases();
     const monitors = await this.prisma.monitor.findMany({ where: { enabled: true } });
     for (const monitor of monitors) {
       await this.scheduleMonitor(monitor.id, monitor.cron);
     }
     this.logger.log(`Loaded ${monitors.length} monitor jobs`);
+  }
+
+  /** Re-open release deployments that were marked failed due to Jenkins poll errors only. */
+  private async recoverReleaseDeploymentsFromPollErrors(): Promise<void> {
+    const deployments = await this.prisma.releaseDeployment.findMany({
+      where: { status: ReleaseDeploymentStatus.FAILED },
+      include: { monitor: true },
+    });
+
+    const releaseIds = new Set<string>();
+
+    for (const deployment of deployments) {
+      if (!deployment.monitor) continue;
+      const lastResult = toMonitorResult(deployment.monitor.lastResult);
+      if (!lastResult || !isDeploymentMonitorPollError(lastResult)) continue;
+
+      await this.prisma.releaseDeployment.update({
+        where: { id: deployment.id },
+        data: { status: ReleaseDeploymentStatus.IN_PROGRESS },
+      });
+      releaseIds.add(deployment.releaseId);
+
+      if (!deployment.monitor.enabled) {
+        const nextRunAt = this.computeNextRun(deployment.monitor.cron);
+        await this.prisma.monitor.update({
+          where: { id: deployment.monitor.id },
+          data: { enabled: true, nextRunAt },
+        });
+        await this.scheduleMonitor(deployment.monitor.id, deployment.monitor.cron);
+      }
+    }
+
+    for (const releaseId of releaseIds) {
+      await this.releasesService.reaggregateAndBroadcast(releaseId);
+      await this.releasesService.backfillMemberTodoStagingMonitorsForRelease(releaseId);
+    }
+
+    if (releaseIds.size > 0) {
+      this.logger.log(
+        `Recovered ${releaseIds.size} release(s) from poll-error deployment failures`,
+      );
+    }
+  }
+
+  /** Sync release deployment chips onto member todos for active staging releases. */
+  private async backfillActiveReleaseTodoStagingMonitors(): Promise<void> {
+    const releases = await this.prisma.release.findMany({
+      where: {
+        type: 'staging',
+        status: { in: NON_TERMINAL_RELEASE_STATUSES },
+        deployments: { some: {} },
+      },
+      select: { id: true },
+    });
+
+    for (const release of releases) {
+      await this.releasesService.backfillMemberTodoStagingMonitorsForRelease(release.id);
+    }
+  }
+
+  private async disableMonitorsForTerminalReleases(): Promise<void> {
+    const stale = await this.prisma.monitor.findMany({
+      where: {
+        enabled: true,
+        OR: [
+          {
+            releaseDeployment: {
+              release: { status: { in: TERMINAL_RELEASE_STATUSES } },
+            },
+          },
+          { release: { status: { in: TERMINAL_RELEASE_STATUSES } } },
+        ],
+      },
+      select: { id: true },
+    });
+    for (const monitor of stale) {
+      await this.disableDeploymentMonitor(monitor.id);
+    }
+    if (stale.length > 0) {
+      this.logger.log(`Disabled ${stale.length} monitors on terminal releases`);
+    }
   }
 
   async executeMonitor(monitorId: string): Promise<void> {
@@ -164,6 +251,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
     if (monitor.releaseDeploymentId) {
       await this.syncReleaseDeploymentMonitor(
+        monitorId,
         monitor.releaseDeploymentId,
         result,
       );
@@ -187,6 +275,27 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     }
 
     const todoId = monitor.todoId ?? monitor.subtask?.todoId ?? null;
+
+    let todoForStatusSync: {
+      status: TodoStatus;
+      pullRequests: { status: string }[];
+    } | null = null;
+
+    if (todoId && monitor.type === MonitorType.DEPLOYMENT) {
+      const todo = await this.prisma.todo.findUnique({
+        where: { id: todoId },
+        select: {
+          status: true,
+          pullRequests: { select: { status: true } },
+        },
+      });
+      if (todo) {
+        todoForStatusSync = {
+          status: todo.status as TodoStatus,
+          pullRequests: todo.pullRequests,
+        };
+      }
+    }
 
     if (monitor.subtaskId) {
       await this.syncSubtaskStatus(monitor, result);
@@ -212,27 +321,58 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const nextTodoStatus = todoId
-      ? resolveTodoStatusOnDeploySuccess(
-          previousResult,
-          result,
-          monitor.type,
-          monitor.config,
-        )
-      : null;
+    const nextTodoStatus =
+      todoForStatusSync != null
+        ? resolveTodoStatusFromSuccessfulDeployPoll(
+            result,
+            monitor.type,
+            monitor.config,
+            todoForStatusSync.status,
+            todoForStatusSync.pullRequests,
+          )
+        : null;
 
     const suppressStatusSync =
       isTodoStatusSyncSuppressedForDeploymentMonitor(monitor.config) ||
       (todoId != null && (await this.isTodoOnNonTerminalRelease(todoId)));
 
+    let statusAfterSync = todoForStatusSync?.status ?? null;
+
     if (todoId && nextTodoStatus && !suppressStatusSync) {
       await this.syncTodoStatusOnDeploySuccess(todoId, nextTodoStatus);
+      statusAfterSync = nextTodoStatus;
     } else if (monitor.todoId) {
       await this.broadcastTodoUpdated(monitor.todoId);
     }
 
+    if (
+      monitor.type === MonitorType.DEPLOYMENT &&
+      !monitor.releaseDeploymentId &&
+      !monitor.releaseId &&
+      !monitor.testcaseScanId &&
+      todoForStatusSync != null &&
+      statusAfterSync != null &&
+      !shouldKeepDeploymentMonitorActiveAfterPoll(
+        result,
+        monitor.type,
+        monitor.config,
+        statusAfterSync,
+        todoForStatusSync.pullRequests,
+      )
+    ) {
+      await this.disableDeploymentMonitor(monitorId);
+    }
+
     const dto = toMonitorDto(updated);
     this.events.broadcast('monitor.updated', dto);
+  }
+
+  private async disableDeploymentMonitor(monitorId: string): Promise<void> {
+    await this.unscheduleMonitor(monitorId);
+    await this.prisma.monitor.update({
+      where: { id: monitorId },
+      data: { enabled: false, nextRunAt: null },
+    });
   }
 
   private async syncTestcaseScanMonitor(
@@ -286,6 +426,15 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     releaseId: string,
     result: MonitorResult,
   ): Promise<void> {
+    const releaseRecord = await this.prisma.release.findUnique({
+      where: { id: releaseId },
+      select: { status: true },
+    });
+    if (releaseRecord && TERMINAL_RELEASE_STATUSES.includes(releaseRecord.status)) {
+      await this.disableDeploymentMonitor(monitorId);
+      return;
+    }
+
     const discovered = Array.isArray(result.metadata?.discovered)
       ? (result.metadata.discovered as Array<{
           serviceId: string;
@@ -305,22 +454,46 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async syncReleaseDeploymentMonitor(
+    monitorId: string,
     releaseDeploymentId: string,
     result: MonitorResult,
   ): Promise<void> {
     const deployment = await this.prisma.releaseDeployment.findUnique({
       where: { id: releaseDeploymentId },
+      include: { release: true },
     });
     if (!deployment) return;
 
-    const previousStatus = deployment.status as ReleaseDeploymentStatus;
     const nextStatus = mapMonitorResultToDeploymentStatus(result);
+    if (nextStatus === null) {
+      return;
+    }
+
+    if (TERMINAL_RELEASE_STATUSES.includes(deployment.release.status)) {
+      const recoveringFailedRelease =
+        deployment.release.status === ReleaseStatus.FAILED &&
+        nextStatus !== ReleaseDeploymentStatus.FAILED;
+      if (!recoveringFailedRelease) {
+        await this.disableDeploymentMonitor(monitorId);
+        return;
+      }
+    }
+
+    const previousStatus = deployment.status as ReleaseDeploymentStatus;
 
     await this.releasesService.onDeploymentMonitorResult(
       releaseDeploymentId,
       previousStatus,
       nextStatus,
     );
+
+    const deploymentTerminal =
+      nextStatus === ReleaseDeploymentStatus.SUCCESSFUL ||
+      nextStatus === ReleaseDeploymentStatus.FAILED;
+
+    if (deploymentTerminal) {
+      await this.disableDeploymentMonitor(monitorId);
+    }
   }
 
   private async syncTodoStatusOnDeploySuccess(
@@ -393,6 +566,13 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     result: MonitorResult,
   ): Promise<void> {
     if (!monitor.subtaskId || !monitor.subtask) return;
+
+    if (
+      monitor.type === MonitorType.DEPLOYMENT &&
+      isDeploymentMonitorPollError(result)
+    ) {
+      return;
+    }
 
     let status: SubtaskStatus | undefined;
     if (result.status === MonitorResultStatus.SUCCESS) {

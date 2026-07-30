@@ -8,6 +8,7 @@ import {
 } from '../utils/activeDeployments';
 import {
   deploymentStatusChipClassName,
+  formatDeploymentCurrentStep,
   formatDeploymentDuration,
   resolveDeploymentDurationMs,
 } from '../utils/deploymentDisplay';
@@ -20,6 +21,7 @@ function DeploymentChip({
   environment,
   status,
   buildNumber,
+  currentStep,
   durationMs,
   timestamp,
   buildUrl,
@@ -28,6 +30,7 @@ function DeploymentChip({
   environment: string;
   status: DeploymentStatus;
   buildNumber: number;
+  currentStep?: string | null;
   durationMs: number | null;
   timestamp?: number;
   buildUrl?: string;
@@ -35,28 +38,40 @@ function DeploymentChip({
 }) {
   const resolvedDurationMs = resolveDeploymentDurationMs(durationMs, status, timestamp, nowMs);
   const duration = formatDeploymentDuration(resolvedDurationMs);
-  const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip`;
+  const stageLabel = formatDeploymentCurrentStep(status, currentStep);
   const titleParts = [environment, `Build #${buildNumber}`];
+  if (stageLabel) titleParts.push(`Stage: ${stageLabel}`);
   if (duration) titleParts.push(duration);
   if (buildUrl) titleParts.push(buildUrl);
   const title = titleParts.join(' · ');
 
   const chipContent = (
     <>
-      <span
-        className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
-      >
-        {environment}
+      <span className="env-chip-row">
+        <span
+          className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
+        >
+          {environment}
+        </span>
+        <span className="env-chip-meta">
+          {status === DeploymentStatus.IN_PROGRESS && (
+            <span className="env-chip-spinner" aria-hidden="true" />
+          )}
+          <span className="env-chip-build">#{buildNumber}</span>
+          {duration && <span className="env-chip-duration">{duration}</span>}
+        </span>
       </span>
-      <span className="env-chip-meta">
-        {status === DeploymentStatus.IN_PROGRESS && (
-          <span className="env-chip-spinner" aria-hidden="true" />
-        )}
-        <span className="env-chip-build">#{buildNumber}</span>
-        {duration && <span className="env-chip-duration">{duration}</span>}
-      </span>
+      {stageLabel && (
+        <span className="env-chip-step" title={stageLabel}>
+          {stageLabel}
+        </span>
+      )}
     </>
   );
+
+  const chipClassName = `env-chip ${deploymentStatusChipClassName(status)} deployment-active-chip${
+    stageLabel ? ' env-chip-has-step' : ''
+  }`;
 
   if (buildUrl) {
     return (
@@ -98,6 +113,7 @@ function ServiceDeploymentRow({
             environment={deployment.environment}
             status={deployment.status}
             buildNumber={deployment.buildNumber}
+            currentStep={deployment.currentStep}
             durationMs={deployment.durationMs}
             timestamp={deployment.timestamp}
             buildUrl={deployment.buildUrl}
