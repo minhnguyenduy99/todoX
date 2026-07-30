@@ -9,7 +9,9 @@ import { ServicesView } from './components/ServicesView';
 import { ActiveDeploymentsPanel } from './components/ActiveDeploymentsPanel';
 import { SideNav, type AppSection } from './components/SideNav';
 import { ServiceFilterCombobox } from './components/ServiceFilterCombobox';
+import { TodoSearchInput } from './components/TodoSearchInput';
 import { NotificationBell } from './components/NotificationBell';
+import { todoSearchService } from './services/todo-search';
 import {
   filterTodosByService,
   parseServiceFilter,
@@ -30,6 +32,7 @@ export function App() {
   const [serviceFilter, setServiceFilter] = useState<ServiceFilterValue>(() =>
     parseServiceFilter(window.location.search),
   );
+  const [searchQuery, setSearchQuery] = useState('');
   const connected = useWebSocket();
   const { data: todos, isLoading, error } = useQuery({
     queryKey: ['todos'],
@@ -55,10 +58,17 @@ export function App() {
     });
   }, [services, knownKeyNames]);
 
-  const filteredTodos = useMemo(
+  const serviceFilteredTodos = useMemo(
     () => filterTodosByService(todos ?? [], serviceFilter),
     [todos, serviceFilter],
   );
+
+  const filteredTodos = useMemo(
+    () => todoSearchService.filterTodos(serviceFilteredTodos, searchQuery),
+    [serviceFilteredTodos, searchQuery],
+  );
+
+  const hasActiveSearch = searchQuery.trim().length > 0;
 
   function handleFilterChange(nextFilter: ServiceFilterValue) {
     setServiceFilter(nextFilter);
@@ -100,6 +110,11 @@ export function App() {
                   services={services}
                   onChange={handleFilterChange}
                   disabled={servicesLoading}
+                />
+                <TodoSearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  disabled={isLoading}
                 />
               </div>
             ) : (
@@ -147,11 +162,32 @@ export function App() {
               todos.length > 0 &&
               filteredTodos.length === 0 && (
                 <div className="empty-state">
-                  <h2>No todos match this service filter</h2>
-                  <p>
-                    Try selecting <strong>All services</strong> or another service from the
-                    filter above.
-                  </p>
+                  {hasActiveSearch ? (
+                    <>
+                      <h2>No todos match your search</h2>
+                      <p>
+                        {serviceFilter.kind === 'all' ? (
+                          <>
+                            Try a different search term, or clear the search box to see all
+                            todos.
+                          </>
+                        ) : (
+                          <>
+                            Try a different search term, clear search, or select{' '}
+                            <strong>All services</strong>.
+                          </>
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h2>No todos match this service filter</h2>
+                      <p>
+                        Try selecting <strong>All services</strong> or another service from
+                        the filter above.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 
