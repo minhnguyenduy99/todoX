@@ -1,10 +1,12 @@
 import {
+  DEPLOYED_ENVIRONMENT_ORDER,
+  DeploymentStatus,
   type DeployedEnvironmentDto,
   type DeployedEnvironmentName,
   type TodoDto,
 } from '@todo-platform/shared-types';
-import type { DeploymentStatus } from '@todo-platform/shared-types';
 import { getDeploymentSortKey } from './deploymentSort';
+import { resolveBlueOceanPipelineUrl } from './deploymentDisplay';
 
 export type ActiveDeploymentRow = {
   id: string;
@@ -27,6 +29,21 @@ export type ServiceDeploymentGroup = {
   deployments: ActiveDeploymentRow[];
   maxSortKey: number;
 };
+
+export type EnvDeploymentGroup = {
+  environment: DeployedEnvironmentName;
+  deployments: ActiveDeploymentRow[];
+  maxSortKey: number;
+};
+
+function envOrderIndex(environment: DeployedEnvironmentName): number {
+  const index = DEPLOYED_ENVIRONMENT_ORDER.indexOf(environment);
+  return index === -1 ? DEPLOYED_ENVIRONMENT_ORDER.length : index;
+}
+
+function sortDeploymentsNewestFirst(deployments: ActiveDeploymentRow[]): ActiveDeploymentRow[] {
+  return [...deployments].sort((a, b) => b.sortKey - a.sortKey);
+}
 
 function serviceLabelForTodo(todo: TodoDto): string {
   return todo.service?.displayName ?? 'Unassigned';
@@ -154,9 +171,48 @@ export function groupTodayDeploymentsByService(
   return [...groups.values()]
     .map((group) => ({
       ...group,
-      deployments: [...group.deployments].sort((a, b) => b.sortKey - a.sortKey),
+      deployments: sortDeploymentsNewestFirst(group.deployments),
     }))
     .sort((a, b) => b.maxSortKey - a.maxSortKey);
+}
+
+export function groupTodayDeploymentsByEnvironment(
+  rows: ActiveDeploymentRow[],
+): EnvDeploymentGroup[] {
+  const groups = new Map<DeployedEnvironmentName, EnvDeploymentGroup>();
+
+  for (const row of rows) {
+    const existing = groups.get(row.environment);
+    if (!existing) {
+      groups.set(row.environment, {
+        environment: row.environment,
+        deployments: [row],
+        maxSortKey: row.sortKey,
+      });
+      continue;
+    }
+
+    existing.deployments.push(row);
+    existing.maxSortKey = Math.max(existing.maxSortKey, row.sortKey);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      deployments: sortDeploymentsNewestFirst(group.deployments),
+    }))
+    .sort((a, b) => envOrderIndex(a.environment) - envOrderIndex(b.environment));
+}
+
+export function formatDeploymentGroupCopyText(deployments: ActiveDeploymentRow[]): string {
+  return deployments
+    .filter((deployment) => deployment.status === DeploymentStatus.IN_PROGRESS)
+    .map((deployment) => {
+      const pipelineUrl = resolveBlueOceanPipelineUrl(deployment.buildUrl);
+      return pipelineUrl ? `${deployment.serviceLabel} - ${pipelineUrl}` : null;
+    })
+    .filter((line): line is string => line !== null)
+    .join('\n');
 }
 
 /** @deprecated Use collectTodayServiceDeployments */

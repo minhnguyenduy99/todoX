@@ -10,6 +10,7 @@ import {
   formatDeploymentCurrentStep,
   formatDeploymentDuration,
   releaseDeploymentStatusChipClassName,
+  resolveBlueOceanPipelineUrl,
   resolveDeploymentDurationMs,
   resolveJenkinsBuildUrl,
   resolveReleaseDeploymentBuildUrl,
@@ -116,5 +117,26 @@ describe('deploymentDisplay', () => {
       }),
       'https://jenkins.example/job/staging/10/',
     );
+  });
+
+  it('resolves Blue Ocean pipeline URLs from classic Jenkins build URLs', () => {
+    assert.equal(
+      resolveBlueOceanPipelineUrl('https://jenkins.example/job/billing-uat/42/'),
+      'https://jenkins.example/blue/organizations/jenkins/billing-uat/detail/billing-uat/42/pipeline',
+    );
+    assert.equal(
+      resolveBlueOceanPipelineUrl(
+        'https://jenkins.example/job/platform/job/billing-uat/42/',
+      ),
+      'https://jenkins.example/blue/organizations/jenkins/platform/billing-uat/detail/billing-uat/42/pipeline',
+    );
+    assert.equal(
+      resolveBlueOceanPipelineUrl(
+        'https://jenkins.example/blue/organizations/jenkins/billing-uat/detail/billing-uat/42/pipeline',
+      ),
+      'https://jenkins.example/blue/organizations/jenkins/billing-uat/detail/billing-uat/42/pipeline',
+    );
+    assert.equal(resolveBlueOceanPipelineUrl(undefined), undefined);
+    assert.equal(resolveBlueOceanPipelineUrl('not-a-url'), undefined);
   });
 });

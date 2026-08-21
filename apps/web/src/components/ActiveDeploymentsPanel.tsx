@@ -3,9 +3,16 @@ import type { TodoDto } from '@todo-platform/shared-types';
 import { DeploymentStatus } from '@todo-platform/shared-types';
 import {
   collectTodayServiceDeployments,
+  formatDeploymentGroupCopyText,
+  groupTodayDeploymentsByEnvironment,
   groupTodayDeploymentsByService,
   type ActiveDeploymentRow,
 } from '../utils/activeDeployments';
+import {
+  type DeploymentGroupMode,
+  readDeploymentGroupModeFromStorage,
+  syncDeploymentGroupModeToStorage,
+} from '../utils/deploymentGroupMode';
 import {
   deploymentStatusChipClassName,
   formatDeploymentCurrentStep,
@@ -18,7 +25,7 @@ interface ActiveDeploymentsPanelProps {
 }
 
 function DeploymentChip({
-  environment,
+  primaryLabel,
   status,
   buildNumber,
   currentStep,
@@ -27,7 +34,7 @@ function DeploymentChip({
   buildUrl,
   nowMs,
 }: {
-  environment: string;
+  primaryLabel: string;
   status: DeploymentStatus;
   buildNumber: number;
   currentStep?: string | null;
@@ -39,7 +46,7 @@ function DeploymentChip({
   const resolvedDurationMs = resolveDeploymentDurationMs(durationMs, status, timestamp, nowMs);
   const duration = formatDeploymentDuration(resolvedDurationMs);
   const stageLabel = formatDeploymentCurrentStep(status, currentStep);
-  const titleParts = [environment, `Build #${buildNumber}`];
+  const titleParts = [primaryLabel, `Build #${buildNumber}`];
   if (stageLabel) titleParts.push(`Stage: ${stageLabel}`);
   if (duration) titleParts.push(duration);
   if (buildUrl) titleParts.push(buildUrl);
@@ -61,7 +68,7 @@ function DeploymentChip({
         <span
           className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
         >
-          {environment}
+          {primaryLabel}
         </span>
         {chipMeta}
       </span>
@@ -74,7 +81,7 @@ function DeploymentChip({
       <span
         className={`env-chip-label${status === DeploymentStatus.IN_PROGRESS ? ' env-chip-label-marquee' : ''}`}
       >
-        {environment}
+        {primaryLabel}
       </span>
       {chipMeta}
     </>
@@ -103,23 +110,72 @@ function DeploymentChip({
   );
 }
 
-function ServiceDeploymentRow({
-  serviceLabel,
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="copyable-uuid-icon">
+      <path
+        fill="currentColor"
+        d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="copyable-uuid-icon">
+      <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+    </svg>
+  );
+}
+
+function DeploymentGroupRow({
+  groupKey,
+  groupLabel,
+  getChipPrimaryLabel,
   deployments,
   nowMs,
 }: {
-  serviceLabel: string;
+  groupKey: string;
+  groupLabel: string;
+  getChipPrimaryLabel: (deployment: ActiveDeploymentRow) => string;
   deployments: ActiveDeploymentRow[];
   nowMs: number;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    const text = formatDeploymentGroupCopyText(deployments);
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access may be unavailable.
+    }
+  }
+
   return (
     <div className="deployment-active-row">
-      <span className="deployment-active-service">{serviceLabel}</span>
+      <div className="deployment-active-row-header">
+        <span className="deployment-active-service">{groupLabel}</span>
+        <button
+          type="button"
+          className={`copyable-uuid copyable-uuid-icon-btn${copied ? ' copyable-uuid-icon-btn-copied' : ''}`}
+          onClick={handleCopy}
+          title={copied ? 'Copied!' : `Copy in-progress deployments for ${groupLabel}`}
+          aria-label={copied ? 'Deployments copied' : `Copy in-progress deployments for ${groupLabel}`}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      </div>
       <div className="deployment-active-chips">
         {deployments.map((deployment) => (
           <DeploymentChip
-            key={deployment.id}
-            environment={deployment.environment}
+            key={`${groupKey}:${deployment.id}`}
+            primaryLabel={getChipPrimaryLabel(deployment)}
             status={deployment.status}
             buildNumber={deployment.buildNumber}
             currentStep={deployment.currentStep}
@@ -135,10 +191,27 @@ function ServiceDeploymentRow({
 }
 
 export function ActiveDeploymentsPanel({ todos }: ActiveDeploymentsPanelProps) {
+  const [groupMode, setGroupMode] = useState<DeploymentGroupMode>(() =>
+    readDeploymentGroupModeFromStorage(),
+  );
+  const rows = useMemo(() => collectTodayServiceDeployments(todos), [todos]);
   const groups = useMemo(() => {
-    const rows = collectTodayServiceDeployments(todos);
-    return groupTodayDeploymentsByService(rows);
-  }, [todos]);
+    if (groupMode === 'env') {
+      return groupTodayDeploymentsByEnvironment(rows).map((group) => ({
+        key: group.environment,
+        label: group.environment,
+        deployments: group.deployments,
+        getChipPrimaryLabel: (deployment: ActiveDeploymentRow) => deployment.serviceLabel,
+      }));
+    }
+
+    return groupTodayDeploymentsByService(rows).map((group) => ({
+      key: group.serviceKey,
+      label: group.serviceLabel,
+      deployments: group.deployments,
+      getChipPrimaryLabel: (deployment: ActiveDeploymentRow) => deployment.environment,
+    }));
+  }, [groupMode, rows]);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -151,9 +224,36 @@ export function ActiveDeploymentsPanel({ todos }: ActiveDeploymentsPanelProps) {
     return () => window.clearInterval(intervalId);
   }, [groups]);
 
+  function handleGroupModeChange(mode: DeploymentGroupMode) {
+    setGroupMode(mode);
+    syncDeploymentGroupModeToStorage(mode);
+  }
+
   return (
     <div className="deployments-panel">
-      <h2 className="deployments-panel-title">Today&apos;s Deployments</h2>
+      <div className="deployments-panel-header">
+        <h2 className="deployments-panel-title">Today&apos;s Deployments</h2>
+        <div
+          className="view-toggle deployments-panel-toggle"
+          role="group"
+          aria-label="Deployment grouping"
+        >
+          <button
+            type="button"
+            className={`view-toggle-btn${groupMode === 'service' ? ' active' : ''}`}
+            onClick={() => handleGroupModeChange('service')}
+          >
+            Service
+          </button>
+          <button
+            type="button"
+            className={`view-toggle-btn${groupMode === 'env' ? ' active' : ''}`}
+            onClick={() => handleGroupModeChange('env')}
+          >
+            Env
+          </button>
+        </div>
+      </div>
 
       {groups.length === 0 ? (
         <div className="deployments-panel-empty">
@@ -162,9 +262,11 @@ export function ActiveDeploymentsPanel({ todos }: ActiveDeploymentsPanelProps) {
       ) : (
         <div className="deployments-active-list">
           {groups.map((group) => (
-            <ServiceDeploymentRow
-              key={group.serviceKey}
-              serviceLabel={group.serviceLabel}
+            <DeploymentGroupRow
+              key={group.key}
+              groupKey={group.key}
+              groupLabel={group.label}
+              getChipPrimaryLabel={group.getChipPrimaryLabel}
               deployments={group.deployments}
               nowMs={nowMs}
             />

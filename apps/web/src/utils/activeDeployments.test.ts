@@ -9,6 +9,8 @@ import {
 } from '@todo-platform/shared-types';
 import {
   collectTodayServiceDeployments,
+  formatDeploymentGroupCopyText,
+  groupTodayDeploymentsByEnvironment,
   isDeploymentToday,
   startOfLocalDayMs,
 } from './activeDeployments';
@@ -317,5 +319,281 @@ describe('collectTodayServiceDeployments', () => {
 
   it('returns empty list for empty todos', () => {
     assert.deepEqual(collectTodayServiceDeployments([], now), []);
+  });
+});
+
+describe('groupTodayDeploymentsByEnvironment', () => {
+  const now = new Date(2026, 6, 24, 15, 30).getTime();
+  const todayTs = new Date(2026, 6, 24, 10, 0).getTime();
+  const earlierTodayTs = new Date(2026, 6, 24, 8, 0).getTime();
+
+  it('groups multiple services under the same environment', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService({ keyName: 'billing-api', displayName: 'Billing' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-billing',
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'billing-uat',
+                buildNumber: 1,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: todayTs,
+              },
+            }),
+          ],
+        }),
+        baseTodo({
+          id: 'todo-2',
+          service: baseService({ id: 's2', keyName: 'auth-api', displayName: 'Auth' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-auth',
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'auth-uat',
+                buildNumber: 2,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: earlierTodayTs,
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    const groups = groupTodayDeploymentsByEnvironment(rows);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0]?.environment, DeployedEnvironmentName.UAT);
+    assert.deepEqual(
+      groups[0]?.deployments.map((row) => row.serviceLabel).sort(),
+      ['Auth', 'Billing'],
+    );
+  });
+
+  it('sorts env groups by catalog order', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService(),
+          deployedEnvironments: [
+            env({
+              id: 'env-staging',
+              name: DeployedEnvironmentName.STAGING,
+              deployment: {
+                env: DeployedEnvironmentName.STAGING,
+                jobName: 'billing-staging',
+                buildNumber: 3,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: todayTs,
+              },
+            }),
+            env({
+              id: 'env-dev',
+              name: DeployedEnvironmentName.DEV,
+              deployment: {
+                env: DeployedEnvironmentName.DEV,
+                jobName: 'billing-dev',
+                buildNumber: 1,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: earlierTodayTs,
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    const groups = groupTodayDeploymentsByEnvironment(rows);
+    assert.deepEqual(
+      groups.map((group) => group.environment),
+      [DeployedEnvironmentName.DEV, DeployedEnvironmentName.STAGING],
+    );
+  });
+
+  it('sorts deployments within an env group newest-first', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService({ keyName: 'billing-api', displayName: 'Billing' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-billing',
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'billing-uat',
+                buildNumber: 1,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: earlierTodayTs,
+              },
+            }),
+          ],
+        }),
+        baseTodo({
+          id: 'todo-2',
+          service: baseService({ id: 's2', keyName: 'auth-api', displayName: 'Auth' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-auth',
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'auth-uat',
+                buildNumber: 2,
+                durationMs: 1000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: todayTs,
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    const groups = groupTodayDeploymentsByEnvironment(rows);
+    assert.deepEqual(groups[0]?.deployments.map((row) => row.serviceLabel), ['Auth', 'Billing']);
+  });
+});
+
+describe('formatDeploymentGroupCopyText', () => {
+  const now = new Date(2026, 6, 24, 15, 30).getTime();
+  const todayTs = new Date(2026, 6, 24, 10, 0).getTime();
+
+  it('includes only in-progress deployments with build URLs', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService(),
+          deployedEnvironments: [
+            env({
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'billing-uat',
+                buildNumber: 42,
+                durationMs: 120_000,
+                status: DeploymentStatus.SUCCESS,
+                timestamp: todayTs,
+                buildUrl: 'https://jenkins.example/job/billing-uat/42/',
+              },
+            }),
+            env({
+              id: 'env-dev',
+              name: DeployedEnvironmentName.DEV,
+              deployment: {
+                env: DeployedEnvironmentName.DEV,
+                jobName: 'billing-dev',
+                buildNumber: 7,
+                durationMs: null,
+                status: DeploymentStatus.IN_PROGRESS,
+                timestamp: todayTs,
+                buildUrl: 'https://jenkins.example/job/billing-dev/7/',
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    const text = formatDeploymentGroupCopyText(rows);
+    assert.equal(
+      text,
+      'Billing - https://jenkins.example/blue/organizations/jenkins/billing-dev/detail/billing-dev/7/pipeline',
+    );
+  });
+
+  it('excludes in-progress deployments without a resolvable Blue Ocean link', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService(),
+          deployedEnvironments: [
+            env({
+              name: DeployedEnvironmentName.DEV,
+              deployment: {
+                env: DeployedEnvironmentName.DEV,
+                jobName: 'billing-dev',
+                buildNumber: 7,
+                durationMs: null,
+                status: DeploymentStatus.IN_PROGRESS,
+                currentStep: 'Deploy',
+                timestamp: todayTs,
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    assert.equal(formatDeploymentGroupCopyText(rows), '');
+  });
+
+  it('joins multiple in-progress deployments with newlines', () => {
+    const rows = collectTodayServiceDeployments(
+      [
+        baseTodo({
+          service: baseService({ keyName: 'billing-api', displayName: 'Billing' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-billing',
+              name: DeployedEnvironmentName.UAT,
+              deployment: {
+                env: DeployedEnvironmentName.UAT,
+                jobName: 'billing-uat',
+                buildNumber: 1,
+                durationMs: null,
+                status: DeploymentStatus.IN_PROGRESS,
+                timestamp: todayTs,
+                buildUrl: 'https://jenkins.example/job/billing-uat/1/',
+              },
+            }),
+          ],
+        }),
+        baseTodo({
+          id: 'todo-2',
+          service: baseService({ id: 's2', keyName: 'auth-api', displayName: 'Auth' }),
+          deployedEnvironments: [
+            env({
+              id: 'env-auth',
+              name: DeployedEnvironmentName.DEV,
+              deployment: {
+                env: DeployedEnvironmentName.DEV,
+                jobName: 'auth-dev',
+                buildNumber: 2,
+                durationMs: null,
+                status: DeploymentStatus.IN_PROGRESS,
+                timestamp: todayTs,
+                buildUrl: 'https://jenkins.example/job/auth-dev/2/',
+              },
+            }),
+          ],
+        }),
+      ],
+      now,
+    );
+
+    const text = formatDeploymentGroupCopyText(rows);
+    assert.equal(
+      text,
+      [
+        'Billing - https://jenkins.example/blue/organizations/jenkins/billing-uat/detail/billing-uat/1/pipeline',
+        'Auth - https://jenkins.example/blue/organizations/jenkins/auth-dev/detail/auth-dev/2/pipeline',
+      ].join('\n'),
+    );
   });
 });

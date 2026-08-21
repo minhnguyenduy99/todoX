@@ -92,6 +92,34 @@ export function resolveJenkinsBuildUrl(
   return `${base}/${buildNumber}/`;
 }
 
+/** Convert a classic Jenkins build URL to a Blue Ocean pipeline detail URL. */
+export function resolveBlueOceanPipelineUrl(buildUrl?: string | null): string | undefined {
+  if (!buildUrl) return undefined;
+
+  const trimmed = buildUrl.trim().replace(/\/+$/, '');
+  if (trimmed.includes('/blue/organizations/')) {
+    return trimmed.endsWith('/pipeline') ? trimmed : `${trimmed}/pipeline`;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const pathWithoutTrailing = url.pathname.replace(/\/+$/, '');
+    const buildMatch = pathWithoutTrailing.match(/^(.*)\/(\d+)$/);
+    if (!buildMatch) return undefined;
+
+    const jobPathname = buildMatch[1];
+    const buildNumber = buildMatch[2];
+    const segments = [...jobPathname.matchAll(/\/job\/([^/]+)/g)].map((match) => match[1]);
+    if (segments.length === 0) return undefined;
+
+    const jobName = segments[segments.length - 1];
+    const folderPath = segments.join('/');
+    return `${url.origin}/blue/organizations/jenkins/${folderPath}/detail/${jobName}/${buildNumber}/pipeline`;
+  } catch {
+    return undefined;
+  }
+}
+
 export function extractMonitorDeploymentBuildUrl(
   monitor: MonitorDto | null | undefined,
 ): string | undefined {

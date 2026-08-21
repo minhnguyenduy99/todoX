@@ -1549,12 +1549,28 @@ a.env-chip:hover {
   min-width: 0;
 }
 
+.deployments-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 .deployments-panel-title {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin: 0 0 0.75rem;
+  margin: 0;
+}
+
+.deployments-panel-toggle {
+  align-self: flex-start;
+}
+
+.deployments-panel-toggle .view-toggle-btn {
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
 }
 
 .deployments-panel-empty {
@@ -1581,6 +1597,15 @@ a.env-chip:hover {
   padding: 0.5rem 0.625rem;
   color: inherit;
   text-align: left;
+}
+
+.deployment-active-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .deployment-active-chips {
