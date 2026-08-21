@@ -19,6 +19,7 @@ import {
   resolveTodoStatusFromSuccessfulDeployPoll,
   shouldApplyTodoStatusTransition,
   shouldKeepDeploymentMonitorActiveAfterPoll,
+  type DeploymentMonitorSyncSnapshot,
 } from '../common/todo-deployment-status-sync';
 import { todoStatusUpdateData } from '../common/todo-status-update';
 import {
@@ -280,6 +281,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     let todoForStatusSync: {
       status: TodoStatus;
       pullRequests: { status: string }[];
+      deploymentMonitors: DeploymentMonitorSyncSnapshot[];
     } | null = null;
 
     if (todoId && monitor.type === MonitorType.DEPLOYMENT) {
@@ -288,12 +290,32 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         select: {
           status: true,
           pullRequests: { select: { status: true } },
+          monitors: {
+            select: {
+              type: true,
+              config: true,
+              lastResult: true,
+              lastRunAt: true,
+            },
+          },
         },
       });
       if (todo) {
         todoForStatusSync = {
           status: todo.status as TodoStatus,
           pullRequests: todo.pullRequests,
+          deploymentMonitors: todo.monitors
+            .filter(
+              (m) =>
+                m.type === MonitorType.DEPLOYMENT &&
+                !isTodoStatusSyncSuppressedForDeploymentMonitor(m.config),
+            )
+            .map((m) => ({
+              type: m.type,
+              config: m.config,
+              lastResult: toMonitorResult(m.lastResult),
+              lastRunAt: m.lastRunAt,
+            })),
         };
       }
     }
@@ -330,6 +352,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
             monitor.config,
             todoForStatusSync.status,
             todoForStatusSync.pullRequests,
+            todoForStatusSync.deploymentMonitors,
           )
         : null;
 

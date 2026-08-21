@@ -44,6 +44,7 @@ export async function applyTodoDeployStatusReconcile(
       type: m.type,
       config: m.config,
       lastResult: toMonitorResult(m.lastResult) as MonitorResult | null,
+      lastRunAt: m.lastRunAt,
       enabled: m.enabled,
     }));
 

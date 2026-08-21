@@ -6,6 +6,7 @@ import {
   type MonitorResult,
 } from '@todo-platform/shared-types';
 import {
+  findLatestSuccessfulDeploymentMonitor,
   areAllAssociatedPullRequestsMerged,
   isUatDeploymentMonitor,
   isTodoStatusSyncSuppressedForDeploymentMonitor,
@@ -33,6 +34,19 @@ describe('todo-deployment-status-sync', () => {
   };
 
   const success: MonitorResult = { status: MonitorResultStatus.SUCCESS, message: 'ok' };
+  const successAt = (timestamp: number): MonitorResult => ({
+    status: MonitorResultStatus.SUCCESS,
+    message: 'ok',
+    metadata: {
+      deployment: {
+        env: DeployedEnvironmentName.UAT,
+        jobName: 'job',
+        buildNumber: 1,
+        status: DeploymentStatus.SUCCESS,
+        timestamp,
+      },
+    },
+  });
   const failed: MonitorResult = {
     status: MonitorResultStatus.FAILED,
     message: 'Deployment failed',
@@ -187,6 +201,31 @@ describe('todo-deployment-status-sync', () => {
     });
   });
 
+  describe('findLatestSuccessfulDeploymentMonitor', () => {
+    const devConfig = {
+      env: DeployedEnvironmentName.DEV,
+      jobUrl: 'https://jenkins/job/dev',
+      buildNumber: 10,
+    };
+
+    it('returns the monitor with the newest successful deployment timestamp', () => {
+      expect(
+        findLatestSuccessfulDeploymentMonitor([
+          {
+            type: MonitorType.DEPLOYMENT,
+            config: uatConfig,
+            lastResult: successAt(1_000),
+          },
+          {
+            type: MonitorType.DEPLOYMENT,
+            config: devConfig,
+            lastResult: successAt(2_000),
+          },
+        ])?.config,
+      ).toEqual(devConfig);
+    });
+  });
+
   describe('resolveTodoStatusFromSuccessfulDeployPoll', () => {
     it('returns TESTING for uat on any successful poll while behind', () => {
       expect(
@@ -246,6 +285,66 @@ describe('todo-deployment-status-sync', () => {
           mergedPr,
         ),
       ).toBeNull();
+    });
+
+    it('blocks uat advance when a newer dev deployment succeeded', () => {
+      const devConfig = {
+        env: DeployedEnvironmentName.DEV,
+        jobUrl: 'https://jenkins/job/dev',
+        buildNumber: 10,
+      };
+
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          successAt(1_000),
+          MonitorType.DEPLOYMENT,
+          uatConfig,
+          TodoStatus.IN_PROGRESS,
+          openPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatConfig,
+              lastResult: successAt(1_000),
+            },
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: devConfig,
+              lastResult: successAt(2_000),
+            },
+          ],
+        ),
+      ).toBeNull();
+    });
+
+    it('allows uat advance when uat is the latest successful deployment', () => {
+      const devConfig = {
+        env: DeployedEnvironmentName.DEV,
+        jobUrl: 'https://jenkins/job/dev',
+        buildNumber: 10,
+      };
+
+      expect(
+        resolveTodoStatusFromSuccessfulDeployPoll(
+          successAt(3_000),
+          MonitorType.DEPLOYMENT,
+          uatConfig,
+          TodoStatus.IN_PROGRESS,
+          openPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: devConfig,
+              lastResult: successAt(2_000),
+            },
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatConfig,
+              lastResult: successAt(1_000),
+            },
+          ],
+        ),
+      ).toBe(TodoStatus.TESTING);
     });
 
     it('returns null when poll is not successful', () => {
@@ -343,7 +442,13 @@ describe('todo-deployment-status-sync', () => {
   });
 
   describe('reconcileTodoStatusFromDeploymentMonitors', () => {
-    it('picks the highest applicable target from multiple monitors', () => {
+    it('uses the latest successful deployment monitor for status sync', () => {
+      const devConfig = {
+        env: DeployedEnvironmentName.DEV,
+        jobUrl: 'https://jenkins/job/dev',
+        buildNumber: 10,
+      };
+
       expect(
         reconcileTodoStatusFromDeploymentMonitors(
           TodoStatus.IN_PROGRESS,
@@ -352,16 +457,58 @@ describe('todo-deployment-status-sync', () => {
             {
               type: MonitorType.DEPLOYMENT,
               config: uatConfig,
-              lastResult: success,
+              lastResult: successAt(1_000),
+            },
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: devConfig,
+              lastResult: successAt(2_000),
+            },
+          ],
+        ),
+      ).toBeNull();
+    });
+
+    it('advances from the latest uat-main success when it is newest', () => {
+      expect(
+        reconcileTodoStatusFromDeploymentMonitors(
+          TodoStatus.IN_PROGRESS,
+          mergedPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatConfig,
+              lastResult: successAt(1_000),
             },
             {
               type: MonitorType.DEPLOYMENT,
               config: uatMainConfig,
-              lastResult: success,
+              lastResult: successAt(3_000),
             },
           ],
         ),
       ).toBe(TodoStatus.WAIT_FOR_STAGING);
+    });
+
+    it('advances to TESTING when uat is the latest successful deployment', () => {
+      expect(
+        reconcileTodoStatusFromDeploymentMonitors(
+          TodoStatus.IN_PROGRESS,
+          openPr,
+          [
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatConfig,
+              lastResult: successAt(3_000),
+            },
+            {
+              type: MonitorType.DEPLOYMENT,
+              config: uatMainConfig,
+              lastResult: successAt(1_000),
+            },
+          ],
+        ),
+      ).toBe(TodoStatus.TESTING);
     });
 
     it('returns null when uat-main succeeded but PRs are open', () => {
