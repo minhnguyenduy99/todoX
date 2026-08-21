@@ -189,9 +189,9 @@ export function App() {
 
             {section === 'todos' && !isLoading && filteredTodos.length > 0 && (
               todoViewMode === 'list' ? (
-                <TodoListView todos={filteredTodos} />
+                <TodoListView todos={filteredTodos} allTodos={todos ?? []} />
               ) : (
-                <KanbanView todos={filteredTodos} />
+                <KanbanView todos={filteredTodos} allTodos={todos ?? []} />
               )
             )}
 

@@ -566,6 +566,73 @@ describe('Todos API (integration)', () => {
     });
   });
 
+  it('PATCH /todos/:id re-enables dev monitor when buildNumber changes', async () => {
+    const todoRes = await request(app.getHttpServer())
+      .post('/todos')
+      .send({
+        title: 'Redeploy todo',
+        deployedEnvironments: ['dev'],
+        monitor: {
+          type: 'deployment',
+          cron: '*/1 * * * *',
+          config: {
+            env: 'dev',
+            jobUrl: 'https://jenkins.example.net/job/dev-job',
+            buildNumber: 10,
+          },
+        },
+      })
+      .expect(201);
+
+    await prisma.monitor.update({
+      where: { id: todoRes.body.monitor.id },
+      data: {
+        enabled: false,
+        nextRunAt: null,
+        lastResult: {
+          status: 'success',
+          message: 'Deployment to dev build #10 succeeded',
+          metadata: {
+            deployment: {
+              env: 'dev',
+              status: 'success',
+              jobName: 'dev-job',
+              buildUrl: 'https://jenkins.example.net/job/dev-job/10/',
+              buildNumber: 10,
+            },
+          },
+        },
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/todos/${todoRes.body.id}`)
+      .send({
+        monitor: {
+          type: 'deployment',
+          cron: '*/1 * * * *',
+          config: {
+            env: 'dev',
+            jobUrl: 'https://jenkins.example.net/job/dev-job',
+            buildNumber: 11,
+          },
+        },
+      })
+      .expect(200);
+
+    expect(response.body.monitor).toMatchObject({
+      enabled: true,
+      config: { buildNumber: 11 },
+    });
+    expect(response.body.monitor.lastResult).toBeNull();
+
+    const stored = await prisma.monitor.findUnique({
+      where: { id: todoRes.body.monitor.id },
+    });
+    expect(stored?.enabled).toBe(true);
+    expect(stored?.lastResult).toBeNull();
+  });
+
   describe('service association', () => {
     it('POST /todos assigns service by serviceKeyName', async () => {
       await request(app.getHttpServer())

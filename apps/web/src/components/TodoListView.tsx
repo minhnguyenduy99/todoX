@@ -12,10 +12,16 @@ import {
 
 interface TodoListViewProps {
   todos: TodoDto[];
+  /** Full cache list for panel lookup so live updates work when filters exclude the todo. */
+  allTodos: TodoDto[];
 }
 
-export function TodoListView({ todos }: TodoListViewProps) {
-  const [selectedTodo, setSelectedTodo] = useState<TodoDto | null>(null);
+export function TodoListView({ todos, allTodos }: TodoListViewProps) {
+  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
+  const selectedTodo =
+    selectedTodoId != null
+      ? allTodos.find((todo) => todo.id === selectedTodoId) ?? null
+      : null;
   const groups = groupTodosByStatus(todos);
 
   return (
@@ -38,7 +44,7 @@ export function TodoListView({ todos }: TodoListViewProps) {
                     todo={todo}
                     {...COMPACT_TODO_CARD_PROPS}
                     cardLayout="list"
-                    onClick={() => setSelectedTodo(todo)}
+                    onClick={() => setSelectedTodoId(todo.id)}
                   />
                 ))}
               </div>
@@ -48,7 +54,7 @@ export function TodoListView({ todos }: TodoListViewProps) {
       </div>
 
       {selectedTodo && (
-        <SubtaskPanel todo={selectedTodo} onClose={() => setSelectedTodo(null)} />
+        <SubtaskPanel todo={selectedTodo} onClose={() => setSelectedTodoId(null)} />
       )}
     </>
   );

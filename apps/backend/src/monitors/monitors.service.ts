@@ -9,7 +9,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { SchedulerService } from '../scheduler/scheduler.service';
-import { toMonitorDto } from '../common/mappers';
+import { toMonitorDto, toMonitorResult } from '../common/mappers';
+import { extractDeploymentInfo } from '../common/deployment-enrichment';
 import { resolveMonitorEnvKey } from '../common/monitor-env-key';
 import type {
   CreateMonitorDto,
@@ -276,30 +277,69 @@ export class MonitorsService {
     if (dto.cron) this.validateCron(dto.cron);
 
     const cron = dto.cron ?? existing.cron;
-    const enabled = dto.enabled ?? existing.enabled;
     const type = (dto.type ?? existing.type) as MonitorType;
-    const config = (dto.config ??
+    const normalizedConfig = dto.config
+      ? this.normalizeMonitorConfig(type, dto.config)
+      : null;
+    const config = (normalizedConfig ??
       (existing.config as Record<string, unknown>)) as Record<string, unknown>;
     const envKey = resolveMonitorEnvKey(type, config) ?? existing.envKey;
+
+    let enabled = dto.enabled ?? existing.enabled;
+    let clearLastResult = options?.clearLastResult ?? false;
+    const pollTargetChanged = this.didPollTargetChange(
+      existing.type as MonitorType,
+      existing.config as Record<string, unknown>,
+      type,
+      dto.config,
+    );
+
+    if (pollTargetChanged) {
+      clearLastResult = true;
+      if (dto.enabled === undefined) {
+        enabled = true;
+      }
+    } else if (
+      type === MonitorType.DEPLOYMENT &&
+      this.isDeploymentResultStale(existing, config)
+    ) {
+      clearLastResult = true;
+      if (dto.enabled === undefined) {
+        enabled = true;
+      }
+    }
+
+    const shouldRunNow =
+      pollTargetChanged ||
+      (type === MonitorType.DEPLOYMENT &&
+        this.isDeploymentResultStale(existing, config));
 
     const monitor = await this.prisma.monitor.update({
       where: { id },
       data: {
         type: dto.type,
         cron: dto.cron,
-        enabled: dto.enabled,
+        enabled,
         envKey,
-        config: dto.config
-          ? (this.normalizeMonitorConfig(type, dto.config) as Prisma.InputJsonValue)
+        config: normalizedConfig
+          ? (normalizedConfig as Prisma.InputJsonValue)
           : undefined,
         nextRunAt: enabled ? this.computeNextRun(cron) : null,
-        ...(options?.clearLastResult ? { lastResult: Prisma.DbNull } : {}),
+        ...(clearLastResult ? { lastResult: Prisma.DbNull } : {}),
       },
     });
 
     await this.scheduler.unscheduleMonitor(id);
     if (monitor.enabled) {
       await this.scheduler.scheduleMonitor(monitor.id, monitor.cron);
+      if (
+        shouldRunNow &&
+        (type === MonitorType.DEPLOYMENT ||
+          type === MonitorType.TESTCASE_SCAN ||
+          type === MonitorType.DEPLOYMENT_DISCOVERY)
+      ) {
+        this.scheduler.runMonitorNow(monitor.id);
+      }
     }
 
     const result = toMonitorDto(monitor);
@@ -348,6 +388,59 @@ export class MonitorsService {
     return normalizeDeploymentMonitorConfig(
       config as unknown as DeploymentMonitorConfig,
     ) as unknown as Record<string, unknown>;
+  }
+
+  private didPollTargetChange(
+    existingType: MonitorType,
+    existingConfig: Record<string, unknown>,
+    nextType: MonitorType,
+    incomingConfig: Record<string, unknown> | undefined,
+  ): boolean {
+    if (!incomingConfig) return false;
+
+    if (
+      existingType === MonitorType.DEPLOYMENT &&
+      nextType === MonitorType.DEPLOYMENT
+    ) {
+      const prev = normalizeDeploymentMonitorConfig(
+        existingConfig as unknown as DeploymentMonitorConfig,
+      );
+      const next = normalizeDeploymentMonitorConfig(
+        incomingConfig as unknown as DeploymentMonitorConfig,
+      );
+      return (
+        prev.jobUrl !== next.jobUrl || prev.buildNumber !== next.buildNumber
+      );
+    }
+
+    if (
+      existingType === MonitorType.TESTCASE_SCAN &&
+      nextType === MonitorType.TESTCASE_SCAN
+    ) {
+      const prev = existingConfig as { jobUrl?: string; buildNumber?: number };
+      const next = incomingConfig as { jobUrl?: string; buildNumber?: number };
+      return (
+        prev.jobUrl !== next.jobUrl || prev.buildNumber !== next.buildNumber
+      );
+    }
+
+    return false;
+  }
+
+  private isDeploymentResultStale(
+    existing: { type: string; config: unknown; lastResult: unknown },
+    config: Record<string, unknown>,
+  ): boolean {
+    if (existing.type !== MonitorType.DEPLOYMENT) return false;
+
+    const target = normalizeDeploymentMonitorConfig(
+      config as unknown as DeploymentMonitorConfig,
+    );
+    const deployment = extractDeploymentInfo(
+      toMonitorResult(existing.lastResult),
+    );
+    if (!deployment) return true;
+    return deployment.buildNumber !== target.buildNumber;
   }
 
   private validateCron(cron: string): void {

@@ -12,10 +12,16 @@ import {
 
 interface KanbanViewProps {
   todos: TodoDto[];
+  /** Full cache list for panel lookup so live updates work when filters exclude the todo. */
+  allTodos: TodoDto[];
 }
 
-export function KanbanView({ todos }: KanbanViewProps) {
-  const [selectedTodo, setSelectedTodo] = useState<TodoDto | null>(null);
+export function KanbanView({ todos, allTodos }: KanbanViewProps) {
+  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
+  const selectedTodo =
+    selectedTodoId != null
+      ? allTodos.find((todo) => todo.id === selectedTodoId) ?? null
+      : null;
   const groups = groupTodosByStatus(todos);
 
   return (
@@ -37,7 +43,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
                     todo={todo}
                     {...COMPACT_TODO_CARD_PROPS}
                     cardLayout="kanban"
-                    onClick={() => setSelectedTodo(todo)}
+                    onClick={() => setSelectedTodoId(todo.id)}
                   />
                 ))}
               </div>
@@ -47,7 +53,7 @@ export function KanbanView({ todos }: KanbanViewProps) {
       </div>
 
       {selectedTodo && (
-        <SubtaskPanel todo={selectedTodo} onClose={() => setSelectedTodo(null)} />
+        <SubtaskPanel todo={selectedTodo} onClose={() => setSelectedTodoId(null)} />
       )}
     </>
   );
