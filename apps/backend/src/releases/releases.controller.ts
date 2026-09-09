@@ -9,7 +9,11 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CreateReleaseBody, UpdateReleaseBody } from '../common/release.dto';
+import {
+  CreateReleaseBody,
+  SplitReleaseBody,
+  UpdateReleaseBody,
+} from '../common/release.dto';
 import { ReleasesService } from './releases.service';
 
 @ApiTags('releases')
@@ -41,9 +45,21 @@ export class ReleasesController {
     return this.releasesService.update(id, body);
   }
 
+  @Post(':id/split')
+  @ApiOperation({
+    summary:
+      'Move non-successful-service todos to a new release and mark the source successful',
+  })
+  split(@Param('id') id: string, @Body() body: SplitReleaseBody) {
+    return this.releasesService.split(id, body);
+  }
+
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Cancel a release that has no deployments yet' })
+  @ApiOperation({
+    summary:
+      'Delete/cancel a non-successful release when no member service has deployed successfully',
+  })
   cancel(@Param('id') id: string) {
     return this.releasesService.cancel(id);
   }

@@ -34,6 +34,7 @@ describe('ReleasesService', () => {
       findUnique: jest.Mock;
       upsert: jest.Mock;
       updateMany: jest.Mock;
+      deleteMany: jest.Mock;
     };
     deployedEnvironment: {
       findMany: jest.Mock;
@@ -71,6 +72,14 @@ describe('ReleasesService', () => {
     updatedAt: new Date('2026-01-01'),
   };
 
+  const serviceB = {
+    id: 'svc-b',
+    keyName: 'service-b',
+    displayName: 'Service B',
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  };
+
   const todoA = {
     id: 'todo-a',
     title: 'Todo A',
@@ -89,6 +98,8 @@ describe('ReleasesService', () => {
     ...todoA,
     id: 'todo-b',
     title: 'Todo B',
+    serviceId: 'svc-b',
+    service: serviceB,
   };
 
   const baseRelease = {
@@ -128,6 +139,7 @@ describe('ReleasesService', () => {
         findUnique: jest.fn(),
         upsert: jest.fn(),
         updateMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
       deployedEnvironment: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -352,6 +364,52 @@ describe('ReleasesService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('cancels in-progress release with deployments when no service succeeded', async () => {
+    const withDeployments = {
+      ...baseRelease,
+      deployments: [
+        {
+          id: 'dep-a',
+          serviceId: 'svc-a',
+          status: 'pending',
+          monitor: null,
+        },
+        {
+          id: 'dep-b',
+          serviceId: 'svc-b',
+          status: 'in_progress',
+          monitor: null,
+        },
+      ],
+    };
+    prisma.release.findUnique.mockResolvedValue(withDeployments);
+    prisma.todo.findMany.mockResolvedValue([todoA, todoB]);
+
+    await service.cancel('rel-1');
+
+    expect(prisma.release.delete).toHaveBeenCalledWith({ where: { id: 'rel-1' } });
+  });
+
+  it('rejects cancel when any service deployment succeeded', async () => {
+    prisma.release.findUnique.mockResolvedValue({
+      ...baseRelease,
+      members: [
+        {
+          todoId: 'todo-a',
+          todo: { ...todoA, status: TodoStatus.COMPLETED },
+        },
+        { todoId: 'todo-b', todo: todoB },
+      ],
+      deployments: [
+        { id: 'dep-a', serviceId: 'svc-a', status: 'successful', monitor: null },
+        { id: 'dep-b', serviceId: 'svc-b', status: 'pending', monitor: null },
+      ],
+    });
+
+    await expect(service.cancel('rel-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.release.delete).not.toHaveBeenCalled();
+  });
+
   it('removes a member and cancels draft before deployments', async () => {
     const afterRemove = {
       ...baseRelease,
@@ -406,6 +464,60 @@ describe('ReleasesService', () => {
 
     expect(result.type).toBe('prod');
     expect(prisma.releaseMember.createMany).toHaveBeenCalled();
+  });
+
+  it('splits movable todos to a new release and marks source successful', async () => {
+    jest
+      .spyOn(service, 'attachTodoDeploymentMonitorsForService')
+      .mockResolvedValue(undefined);
+
+    const partialRelease = {
+      ...baseRelease,
+      members: [
+        {
+          todoId: 'todo-a',
+          todo: { ...todoA, status: TodoStatus.COMPLETED },
+        },
+        { todoId: 'todo-b', todo: todoB },
+      ],
+      deployments: [
+        { id: 'dep-a', serviceId: 'svc-a', status: 'successful', monitor: null },
+        { id: 'dep-b', serviceId: 'svc-b', status: 'failed', monitor: null },
+      ],
+    };
+
+    const successfulSource = {
+      ...partialRelease,
+      status: 'successful',
+      members: [partialRelease.members[0]],
+    };
+    const newRelease = {
+      ...baseRelease,
+      id: 'rel-2',
+      members: [partialRelease.members[1]],
+    };
+
+    prisma.release.findUnique
+      .mockResolvedValueOnce(partialRelease)
+      .mockResolvedValueOnce(successfulSource)
+      .mockResolvedValueOnce(newRelease);
+    prisma.todo.findMany
+      .mockResolvedValueOnce([todoB])
+      .mockResolvedValueOnce([todoB]);
+    prisma.release.create.mockResolvedValue({ id: 'rel-2' });
+    prisma.releaseMember.findMany.mockResolvedValue([
+      { todo: partialRelease.members[0].todo },
+    ]);
+
+    const result = await service.split('rel-1', {
+      releaseDate: '2026-09-10',
+      content: 'Split follow-up',
+    });
+
+    expect(result.newRelease.id).toBe('rel-2');
+    expect(result.source.status).toBe('successful');
+    expect(prisma.releaseMember.deleteMany).toHaveBeenCalled();
+    expect(prisma.releaseDeployment.deleteMany).toHaveBeenCalled();
   });
 
   it('throws NotFoundException for missing release', async () => {

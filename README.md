@@ -145,8 +145,10 @@ If streamable HTTP still fails in Cursor (known IDE bug on some versions), build
 | `create_release` | Create a staging/prod release from eligible todo IDs (optional deploy URLs) |
 | `list_releases` | List releases with members and deployments |
 | `get_release` | Get a release by ID |
-| `update_release` | Draft append/remove/content while `not_started`, attach/redeploy Jenkins URLs, or set `status` (`successful` completes/archives members) |
-| `cancel_release` | Cancel a `not_started` draft release |
+| `update_release` | Draft append/remove/content before deployments attach, attach/redeploy Jenkins URLs, or set `status` (`successful` completes/archives members) |
+| `delete_release` | Delete a non-successful release when no member service has deployed successfully (works even with deployments attached) |
+| `split_release` | Move todos from non-successful services to a new release and mark the source successful when partial deploy success blocks delete |
+| `cancel_release` | Alias for `delete_release` |
 
 `create_todo`, `update_todo`, `create_subtask`, and `update_subtask` also accept an optional `pullRequest` object (singular) for agents that cannot pass array parameters. Use `add_associated_pull_request` when you only need to link a PR.
 

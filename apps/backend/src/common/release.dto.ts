@@ -74,6 +74,26 @@ export class CreateReleaseBody {
   deployments?: ReleaseDeploymentBody[];
 }
 
+export class SplitReleaseBody {
+  @ApiProperty({ example: '2026-09-10' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'releaseDate must be yyyy-mm-dd',
+  })
+  releaseDate!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content!: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  todoIds?: string[];
+}
+
 export class UpdateReleaseBody {
   @ApiPropertyOptional()
   @IsOptional()

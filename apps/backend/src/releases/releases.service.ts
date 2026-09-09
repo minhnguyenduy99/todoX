@@ -20,8 +20,11 @@ import {
   TodoStatus,
   type CreateReleaseDto,
   type ReleaseDto,
+  type SplitReleaseDto,
+  type SplitReleaseResultDto,
   type UpdateReleaseDto,
 } from '@todo-platform/shared-types';
+import { classifyReleaseServiceOutcomes } from '../common/release-service-outcomes';
 import { addDeployedEnvironmentToTodo } from '../common/deployed-environments';
 import { extractDeploymentInfo } from '../common/deployment-enrichment';
 import { toMonitorResult, toReleaseDto, toTodoDto } from '../common/mappers';
@@ -686,24 +689,136 @@ export class ReleasesService {
 
   async cancel(id: string): Promise<void> {
     const existing = await this.getReleaseOrThrow(id);
-    if (existing.deployments.length > 0) {
+    if (existing.status === PrismaReleaseStatus.successful) {
+      throw new ConflictException('Successful releases cannot be cancelled');
+    }
+    if (existing.completedTodos.length > 0) {
       throw new ConflictException(
-        'Only releases without deployments can be cancelled',
+        'Releases with archived prod todos cannot be cancelled; use split_release instead',
       );
     }
-    if (
-      existing.status === PrismaReleaseStatus.successful ||
-      existing.status === PrismaReleaseStatus.failed
-    ) {
-      throw new ConflictException('Terminal releases cannot be cancelled');
+
+    const outcomes = classifyReleaseServiceOutcomes(existing);
+    if (outcomes.hasAnySuccessfulService) {
+      throw new ConflictException(
+        'Release has successful service deployments; use split_release instead of delete/cancel',
+      );
     }
 
     const memberTodoIds = existing.members.map((m) => m.todoId);
 
+    await this.disableMonitorsForRelease(id);
     await this.prisma.release.delete({ where: { id } });
 
     this.events.broadcast('release.updated', { id, cancelled: true });
     await this.broadcastTodosUpdated(memberTodoIds);
+  }
+
+  async split(id: string, dto: SplitReleaseDto): Promise<SplitReleaseResultDto> {
+    const existing = await this.getReleaseOrThrow(id);
+    if (existing.status === PrismaReleaseStatus.successful) {
+      throw new ConflictException('Successful releases cannot be split');
+    }
+
+    const outcomes = classifyReleaseServiceOutcomes(existing);
+    if (!outcomes.hasAnySuccessfulService) {
+      throw new ConflictException(
+        'Split requires at least one successful service; use delete/cancel when none have succeeded',
+      );
+    }
+    if (outcomes.movableTodoIds.length === 0) {
+      throw new ConflictException('No movable todos remain on this release');
+    }
+
+    const todoIds: string[] = dto.todoIds?.length
+      ? [...new Set(dto.todoIds)]
+      : [...outcomes.movableTodoIds];
+    const movableSet = new Set(outcomes.movableTodoIds);
+    const invalid = todoIds.filter((todoId) => !movableSet.has(todoId));
+    if (invalid.length) {
+      throw new BadRequestException(
+        `todoIds are not movable on this release: ${invalid.join(', ')}`,
+      );
+    }
+
+    const nonSuccessfulSet = new Set(outcomes.nonSuccessfulServiceIds);
+    const deploymentsToRemove = existing.deployments.filter((deployment) =>
+      nonSuccessfulSet.has(deployment.serviceId),
+    );
+
+    const releaseType = existing.type as ReleaseType;
+    const todos = await this.loadAndValidateTodos(todoIds, releaseType, {
+      excludeReleaseId: id,
+    });
+    const mergedContent = mergeReleaseContent(
+      dto.content,
+      assembleTodoChangelogSection(todos),
+    );
+
+    let newReleaseId: string;
+
+    await this.prisma.$transaction(async (tx) => {
+      const created = await tx.release.create({
+        data: {
+          releaseDate: dto.releaseDate,
+          content: mergedContent,
+          type: existing.type,
+          status: PrismaReleaseStatus.in_progress,
+        },
+      });
+      newReleaseId = created.id;
+
+      await tx.releaseMember.createMany({
+        data: todos.map((todo) => ({
+          releaseId: created.id,
+          todoId: todo.id,
+        })),
+      });
+
+      await tx.releaseMember.deleteMany({
+        where: { releaseId: id, todoId: { in: todoIds } },
+      });
+
+      if (deploymentsToRemove.length) {
+        await tx.releaseDeployment.deleteMany({
+          where: {
+            id: { in: deploymentsToRemove.map((deployment) => deployment.id) },
+          },
+        });
+      }
+
+      const remainingMembers = await tx.releaseMember.findMany({
+        where: { releaseId: id },
+        include: { todo: { include: { service: true } } },
+      });
+      const sourceContent = mergeReleaseContent(
+        extractReleasePreamble(existing.content),
+        assembleTodoChangelogSection(remainingMembers.map((member) => member.todo)),
+      );
+      await tx.release.update({
+        where: { id },
+        data: { content: sourceContent },
+      });
+    });
+
+    for (const deployment of deploymentsToRemove) {
+      if (deployment.monitor?.enabled) {
+        await this.monitorsService.disableAndUnschedule(deployment.monitor.id);
+      }
+    }
+
+    await this.applyManualStatus(id, ReleaseStatus.SUCCESSFUL);
+
+    const source = await this.getReleaseOrThrow(id);
+    const newRelease = await this.getReleaseOrThrow(newReleaseId!);
+    const sourceDto = toReleaseDto(source);
+    const newReleaseDto = toReleaseDto(newRelease);
+
+    this.events.broadcast('release.updated', sourceDto);
+    this.events.broadcast('release.created', newReleaseDto);
+    await this.broadcastTodosUpdated(todoIds);
+
+    return { source: sourceDto, newRelease: newReleaseDto };
   }
 
   private async getReleaseOrThrow(id: string): Promise<ReleaseWithRelations> {

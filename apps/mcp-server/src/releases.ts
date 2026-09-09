@@ -98,6 +98,28 @@ export const releaseIdParamSchema = {
   required: ['id'],
 };
 
+export const splitReleaseSchema = {
+  type: 'object' as const,
+  properties: {
+    id: { type: 'string', description: 'Source release ID to split from' },
+    releaseDate: {
+      type: 'string',
+      description: 'Release date for the new release (yyyy-mm-dd)',
+    },
+    content: {
+      type: 'string',
+      description: 'Preamble for the new release; member changelogs are appended automatically',
+    },
+    todoIds: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Optional subset of movable todos (non-successful services); defaults to all movable members',
+    },
+  },
+  required: ['id', 'releaseDate', 'content'],
+};
+
 export const listTodosFilterSchema = {
   type: 'object' as const,
   properties: {

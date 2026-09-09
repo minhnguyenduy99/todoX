@@ -53,6 +53,7 @@ import {
   createReleaseSchema,
   listTodosFilterSchema,
   releaseIdParamSchema,
+  splitReleaseSchema,
   updateReleaseSchema,
 } from './releases.js';
 
@@ -487,8 +488,21 @@ const tools = [
     inputSchema: updateReleaseSchema,
   },
   {
+    name: 'delete_release',
+    description:
+      'Delete a non-successful release and free its member todos. Allowed only when no member service has deployed successfully (even if Jenkins deployments are attached). If any service succeeded, use split_release instead.',
+    inputSchema: releaseIdParamSchema,
+  },
+  {
+    name: 'split_release',
+    description:
+      'When some services on a release already deployed successfully, move remaining todos (non-successful services) to a new release and mark the source release successful.',
+    inputSchema: splitReleaseSchema,
+  },
+  {
     name: 'cancel_release',
-    description: 'Cancel a release that has no deployments yet and free its member todos',
+    description:
+      'Alias for delete_release — delete a non-successful release when no member service has deployed successfully.',
     inputSchema: releaseIdParamSchema,
   },
   {
@@ -665,9 +679,17 @@ function createMcpServer(): Server {
             status: a.status as UpdateReleaseDto['status'],
           });
           break;
+        case 'delete_release':
         case 'cancel_release':
           await api.cancelRelease(a.id as string);
           result = { success: true, id: a.id };
+          break;
+        case 'split_release':
+          result = await api.splitRelease(a.id as string, {
+            releaseDate: a.releaseDate as string,
+            content: a.content as string,
+            todoIds: a.todoIds as string[] | undefined,
+          });
           break;
         case 'delete_subtask':
           await api.deleteSubtask(a.todoId as string, a.subtaskId as string);

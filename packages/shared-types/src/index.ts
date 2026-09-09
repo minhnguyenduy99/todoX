@@ -500,6 +500,17 @@ export interface UpdateReleaseDto {
   status?: ReleaseStatus;
 }
 
+export interface SplitReleaseDto {
+  releaseDate: string;
+  content: string;
+  todoIds?: string[];
+}
+
+export interface SplitReleaseResultDto {
+  source: ReleaseDto;
+  newRelease: ReleaseDto;
+}
+
 export interface ListTodosParams {
   status?: TodoStatus;
   serviceId?: string;

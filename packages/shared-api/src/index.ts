@@ -9,6 +9,8 @@ import type {
   ListTodosParams,
   MonitorDto,
   ReleaseDto,
+  SplitReleaseDto,
+  SplitReleaseResultDto,
   ServiceDeploymentWriteResponseDto,
   ServiceDto,
   SubtaskDto,
@@ -170,6 +172,10 @@ export class TodoApiClient {
 
   cancelRelease(id: string): Promise<void> {
     return this.request<void>('DELETE', `/releases/${id}`);
+  }
+
+  splitRelease(id: string, data: SplitReleaseDto): Promise<SplitReleaseResultDto> {
+    return this.request<SplitReleaseResultDto>('POST', `/releases/${id}/split`, data);
   }
 
   // Subtasks
