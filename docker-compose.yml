@@ -27,16 +27,13 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
+      context: ./apps/backend
+      dockerfile: Dockerfile
     ports:
       - '10003:3000'
     environment:
-      NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://todo:todo@postgres:5432/todo_platform
-      REDIS_URL: redis://redis:6379
-      CORS_ORIGIN: '*'
+      DATABASE_URL: postgresql://todo:todo@postgres:5432/todo_platform?sslmode=disable
       RUN_MIGRATIONS: 'true'
       LOG_LEVEL: info
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -44,8 +41,6 @@ services:
       JENKINS_SCAN_AUTH: ${JENKINS_SCAN_AUTH:-}
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
