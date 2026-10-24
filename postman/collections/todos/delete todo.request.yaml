@@ -1,0 +1,17 @@
+$kind: http-request
+method: DELETE
+url: '{{base_url}}/todos/:id'
+order: 1000
+pathVariables:
+  - key: id
+    value: '{{todo_id}}'
+    description: Todo id returned by POST /todos.
+examples: './.resources/delete todo.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('deleted todo returns 204 with an empty body', function () {
+        pm.response.to.have.status(204);
+        pm.expect(pm.response.text()).to.eql('');
+      });

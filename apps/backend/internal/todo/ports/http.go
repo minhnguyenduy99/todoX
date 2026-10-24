@@ -35,7 +35,7 @@ type CreateTodoDto struct {
 }
 
 type UpdateTodoInfoDto struct {
-	Title       string `json:"title,omitempty" validate:"omitempty,max=255"`
+	Title       string `json:"title" validate:"required,min=1,max=255"`
 	Description string `json:"description,omitempty" validate:"omitempty,max=2000"`
 	Changelog   string `json:"changelog,omitempty" validate:"omitempty,max=2000"`
 }
@@ -65,6 +65,7 @@ func Setup(r chi.Router, pool *pgxpool.Pool) {
 func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel interfaces.ITodoReadModel) {
 	createTodo := &commands.CreateTodoHandler{Repo: todoRepo}
 	updateTodoInfo := &commands.UpdateTodoInfoHandler{Repo: todoRepo}
+	deleteTodo := &commands.DeleteTodoHandler{Repo: todoRepo}
 	getTodoById := &queries.GetTodoByIdHandler{ReadModel: todoReadModel}
 	listTodos := &queries.ListTodosHandler{ReadModel: todoReadModel}
 
@@ -83,6 +84,10 @@ func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel i
 	r.With(infras.ValidateMiddleware[UpdateTodoInfoDto]("BODY")).Patch(
 		"/todos/{id}",
 		func(w http.ResponseWriter, r *http.Request) { handleUpdateTodoInfo(w, r, updateTodoInfo) },
+	)
+	r.Delete(
+		"/todos/{id}",
+		func(w http.ResponseWriter, r *http.Request) { handleDeleteTodo(w, r, deleteTodo) },
 	)
 }
 
@@ -194,6 +199,20 @@ func handleUpdateTodoInfo(w http.ResponseWriter, r *http.Request, handler *comma
 			UpdatedDate: result.UpdatedDate,
 		},
 	})
+}
+
+func handleDeleteTodo(w http.ResponseWriter, r *http.Request, handler *commands.DeleteTodoHandler) {
+	err := handler.Handle(r.Context(), &commands.DeleteTodo{
+		ID: chi.URLParam(r, "id"),
+	})
+	if err != nil {
+		w.Header().Set("content-type", "application/json")
+		httpStatus, body := serializeError(err)
+		w.WriteHeader(httpStatus)
+		json.NewEncoder(w).Encode(body)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func serializeError(err error) (http_status int, body map[string]any) {

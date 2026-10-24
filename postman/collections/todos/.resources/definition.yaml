@@ -1,0 +1,7 @@
+$kind: collection
+name: Todos
+description: Todo resource contract for the todoX backend.
+variables:
+  - key: base_url
+    value: 'http://localhost:8080'
+    description: Backend origin, including scheme and port.

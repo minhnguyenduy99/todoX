@@ -201,7 +201,14 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 	return nil, todo
 }
 
-func (repo *PostgresTodoRepository) DeleteById(ctx context.Context, handler func() *domains.Todo) error {
+func (repo *PostgresTodoRepository) DeleteById(ctx context.Context, id string) error {
+	tag, err := repo.Pool.Exec(ctx, `DELETE FROM todos WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domains.TodoNotFoundError{ID: id}
+	}
 	return nil
 }
 

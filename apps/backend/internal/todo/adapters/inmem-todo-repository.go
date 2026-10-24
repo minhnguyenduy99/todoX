@@ -74,13 +74,12 @@ func (repo *InMemRepository) Update(ctx context.Context, todoId string, handler 
 	return err, nil
 }
 
-func (repo *InMemRepository) DeleteById(ctx context.Context, handler func() *domains.Todo) error {
-	deletedItem := handler()
+func (repo *InMemRepository) DeleteById(ctx context.Context, id string) error {
 	for i := range todoList {
-		if todoList[i].Id == deletedItem.Id {
+		if todoList[i].Id == id {
 			todoList = append(todoList[:i], todoList[i+1:]...)
-			break
+			return nil
 		}
 	}
-	return nil
+	return domains.TodoNotFoundError{ID: id}
 }

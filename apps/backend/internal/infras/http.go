@@ -86,6 +86,7 @@ func handleBody[T any](w http.ResponseWriter, r *http.Request, next http.Handler
 
 func writeValidationError(w http.ResponseWriter, errs validator.ValidationErrors) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(&InvalidData{
 		Error:   "validation_failed",
 		Message: serializeErrorMessage(errs),
