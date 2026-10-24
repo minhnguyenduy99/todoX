@@ -7,3 +7,5 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 apps/backend/prisma/migrations/**/migration_lock.toml
+
+.context/compound-engineering/
