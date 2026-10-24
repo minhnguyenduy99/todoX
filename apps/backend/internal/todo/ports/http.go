@@ -52,6 +52,15 @@ type CreateTodoDto struct {
 	Tickets     []TicketDto        `json:"tickets" validate:"omitempty,dive"`
 }
 
+type DeleteTicketRefDto struct {
+	Id     string `json:"id" validate:"required,min=1,max=200"`
+	Source string `json:"source" validate:"required,min=1,max=100"`
+}
+
+type DeleteTicketsDto struct {
+	Tickets []DeleteTicketRefDto `json:"tickets" validate:"required,min=1,dive"`
+}
+
 type UpdateTodoInfoDto struct {
 	Title       string       `json:"title" validate:"required,min=1,max=255"`
 	Description string       `json:"description,omitempty" validate:"omitempty,max=2000"`
@@ -85,6 +94,7 @@ func Setup(r chi.Router, pool *pgxpool.Pool) {
 func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel interfaces.ITodoReadModel) {
 	createTodo := &commands.CreateTodoHandler{Repo: todoRepo}
 	updateTodoInfo := &commands.UpdateTodoInfoHandler{Repo: todoRepo}
+	deleteTickets := &commands.DeleteTicketsHandler{Repo: todoRepo}
 	deleteTodo := &commands.DeleteTodoHandler{Repo: todoRepo}
 	getTodoById := &queries.GetTodoByIdHandler{ReadModel: todoReadModel}
 	listTodos := &queries.ListTodosHandler{ReadModel: todoReadModel}
@@ -104,6 +114,10 @@ func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel i
 	r.With(infras.ValidateMiddleware[UpdateTodoInfoDto]("BODY")).Patch(
 		"/todos/{id}",
 		func(w http.ResponseWriter, r *http.Request) { handleUpdateTodoInfo(w, r, updateTodoInfo) },
+	)
+	r.With(infras.ValidateMiddleware[DeleteTicketsDto]("BODY")).Post(
+		"/todos/{id}/deleteTickets",
+		func(w http.ResponseWriter, r *http.Request) { handleDeleteTickets(w, r, deleteTickets) },
 	)
 	r.Delete(
 		"/todos/{id}",
@@ -255,6 +269,37 @@ func ticketResponses(tickets []domains.Ticket) []TicketResponse {
 		})
 	}
 	return mapped
+}
+
+func handleDeleteTickets(w http.ResponseWriter, r *http.Request, handler *commands.DeleteTicketsHandler) {
+	body := r.Context().Value("body").(DeleteTicketsDto)
+	refs := make([]domains.TicketId, 0, len(body.Tickets))
+	for _, ticket := range body.Tickets {
+		refs = append(refs, domains.TicketId{Source: ticket.Source, Code: ticket.Id})
+	}
+	result, err := handler.Handle(r.Context(), &commands.DeleteTickets{
+		ID:      chi.URLParam(r, "id"),
+		Tickets: refs,
+	})
+	w.Header().Set("content-type", "application/json")
+	if err != nil {
+		httpStatus, body := serializeError(err)
+		w.WriteHeader(httpStatus)
+		json.NewEncoder(w).Encode(body)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"data": TodoItemResponse{
+			Id:          result.ID,
+			Title:       result.Title,
+			Description: result.Description,
+			Changelog:   result.Changelog,
+			Status:      string(result.Status),
+			CreatedDate: result.CreatedDate,
+			UpdatedDate: result.UpdatedDate,
+			Tickets:     ticketResponses(result.Tickets),
+		},
+	})
 }
 
 func handleDeleteTodo(w http.ResponseWriter, r *http.Request, handler *commands.DeleteTodoHandler) {

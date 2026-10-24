@@ -6,6 +6,7 @@ description: |-
   Each ticket requires id and source, supplied by the client. The API does not parse an id from the link.
   A ticket is unique per todo on (source, id).
   On update, each sent ticket is inserted or updated by (source, id). Tickets omitted from the request stay.
+  POST /todos/:id/deleteTickets removes the listed tickets. Each item needs source and id. A ticket that is not on the todo is ignored. The response is the todo with the tickets that remain.
   Todo and ticket rows are stored in tx_todos and tx_associated_tickets and are written in one database transaction.
 variables:
   - key: base_url

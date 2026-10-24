@@ -207,6 +207,9 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 	if err := upsertTickets(ctx, tx, todo, updatedAt); err != nil {
 		return err, nil
 	}
+	if err := deleteRemovedTickets(ctx, tx, todo); err != nil {
+		return err, nil
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err, nil
 	}
@@ -263,6 +266,26 @@ func upsertTickets(ctx context.Context, tx pgx.Tx, todo *domains.Todo, updatedAt
 		}
 	}
 	return nil
+}
+
+func deleteRemovedTickets(ctx context.Context, tx pgx.Tx, todo *domains.Todo) error {
+	sources := make([]string, len(todo.Tickets))
+	ids := make([]string, len(todo.Tickets))
+	for i, ticket := range todo.Tickets {
+		sources[i] = ticket.Id.Source
+		ids[i] = ticket.Id.Code
+	}
+	_, err := tx.Exec(ctx, `
+		DELETE FROM tx_associated_tickets
+		WHERE todo_id = $1
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM unnest($2::text[], $3::text[]) AS keep(source, id)
+		    WHERE tx_associated_tickets.source = keep.source
+		      AND tx_associated_tickets.id = keep.id
+		  )
+	`, todo.Id, sources, ids)
+	return err
 }
 
 func attachTickets(ctx context.Context, db pgxQueryer, todos []interfaces.TodoReadModel) error {

@@ -1,0 +1,41 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/todos/:id/deleteTickets'
+order: 3500
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{todo_id}}'
+    description: Todo id returned by POST /todos.
+body:
+  type: json
+  content: |-
+    {
+      "tickets": [
+        {
+          "source": "GITHUB",
+          "id": "GH-88"
+        }
+      ]
+    }
+examples: './.resources/delete tickets.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('deletes the listed tickets and returns the todo', function () {
+        pm.response.to.have.status(200);
+        const body = pm.response.json();
+        pm.expect(body.data.id).to.eql(pm.collectionVariables.get('todo_id'));
+        pm.expect(body.data.tickets).to.eql([
+          {
+            id: 'PROJ-1234',
+            source: 'JIRA',
+            title: 'Login timeout',
+            type: 'BUG',
+            link: 'https://your-domain.atlassian.net/browse/PROJ-1234'
+          }
+        ]);
+      });

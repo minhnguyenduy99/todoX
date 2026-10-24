@@ -2,6 +2,7 @@ package domains
 
 import (
 	"strings"
+	"time"
 
 	"todox-backend/internal/shared"
 )
@@ -45,6 +46,44 @@ func (t *Todo) ReplaceTickets(tickets []NewTicket) shared.BaseDomainError {
 		}
 	}
 	t.Tickets = staged.Tickets
+	return nil
+}
+
+func (t *Todo) RemoveTickets(ids []TicketId) shared.BaseDomainError {
+	wanted := make([]TicketId, 0, len(ids))
+	for _, id := range ids {
+		source := strings.TrimSpace(id.Source)
+		code := strings.TrimSpace(id.Code)
+		if code == "" {
+			return InvalidTicketIdFormatError{TicketId: id.Code}
+		}
+		if source == "" {
+			return InvalidTicketIdFormatError{TicketId: id.Source}
+		}
+		wanted = append(wanted, TicketId{Source: source, Code: code})
+	}
+
+	kept := make([]Ticket, 0, len(t.Tickets))
+	removed := false
+	for _, ticket := range t.Tickets {
+		drop := false
+		for i := range wanted {
+			if ticket.Id.Equals(&wanted[i]) {
+				drop = true
+				break
+			}
+		}
+		if drop {
+			removed = true
+			continue
+		}
+		kept = append(kept, ticket)
+	}
+	if !removed {
+		return nil
+	}
+	t.Tickets = kept
+	t.UpdatedDate = time.Now().Unix()
 	return nil
 }
 

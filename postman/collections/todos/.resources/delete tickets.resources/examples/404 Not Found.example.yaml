@@ -1,0 +1,21 @@
+$kind: http-example
+name: 404 Not Found
+request:
+  url: '{{base_url}}/todos/:id/deleteTickets'
+  method: POST
+response:
+  statusCode: 404
+  statusText: Not Found
+  headers:
+    - key: content-type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "TODO_NOT_FOUND",
+          "message": "Todo missing not found"
+        }
+      }
+order: 3000
