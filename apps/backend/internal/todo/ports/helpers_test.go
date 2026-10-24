@@ -52,6 +52,15 @@ func createTodo(t *testing.T, router http.Handler, title, status string) TodoIte
 	return created.Data
 }
 
+func ticketByLink(tickets []TicketResponse, link string) TicketResponse {
+	for _, ticket := range tickets {
+		if ticket.Link == link {
+			return ticket
+		}
+	}
+	return TicketResponse{}
+}
+
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var body T

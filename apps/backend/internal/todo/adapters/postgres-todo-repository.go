@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,7 +37,7 @@ func (repo *PostgresTodoRepository) Create(ctx context.Context, handler func() *
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-        INSERT INTO todos (id, title, description, changelog, status, "createdAt", "updatedAt")
+        INSERT INTO tx_todos (id, title, description, changelog, todo_status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, todo.Id, todo.Title, todo.Description, todo.Changelog, todo.Status,
 		time.Unix(todo.CreatedDate, 0).UTC(),
@@ -49,9 +47,9 @@ func (repo *PostgresTodoRepository) Create(ctx context.Context, handler func() *
 	}
 	for _, ticket := range todo.Tickets {
 		_, err = tx.Exec(ctx, `
-            INSERT INTO associated_tickets (id, title, type, link, "todoId", "updatedAt")
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, uuid.NewString(), ticket.Title, toDBTicketType(ticket.Type), ticket.Link, todo.Id,
+		INSERT INTO tx_associated_tickets (todo_id, source, id, title, type, link, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, todo.Id, ticket.Id.Source, ticket.Id.Code, ticket.Title, ticket.Type, ticket.Link,
 			time.Unix(todo.UpdatedDate, 0).UTC())
 		if err != nil {
 			return err, nil
@@ -78,12 +76,12 @@ func (repo *PostgresTodoRepository) List(ctx context.Context, status *string) (e
 		statusArg = *status
 	}
 	rows, err := repo.Pool.Query(ctx, `
-		SELECT id, title, COALESCE(description, ''), COALESCE(changelog, ''), status,
-		       EXTRACT(EPOCH FROM "createdAt")::bigint,
-		       EXTRACT(EPOCH FROM "updatedAt")::bigint
-		FROM todos
-		WHERE ($1::text IS NULL OR status::text = $1)
-		ORDER BY "updatedAt" DESC
+		SELECT id, title, COALESCE(description, ''), COALESCE(changelog, ''), todo_status,
+		       EXTRACT(EPOCH FROM created_at)::bigint,
+		       EXTRACT(EPOCH FROM updated_at)::bigint
+		FROM tx_todos
+		WHERE ($1::text IS NULL OR todo_status::text = $1)
+		ORDER BY updated_at DESC
 	`, statusArg)
 	if err != nil {
 		return err, nil
@@ -104,12 +102,25 @@ func (repo *PostgresTodoRepository) List(ctx context.Context, status *string) (e
 	if err := rows.Err(); err != nil {
 		return err, nil
 	}
+	if err := attachTickets(ctx, repo.Pool, todos); err != nil {
+		return err, nil
+	}
 	return nil, todos
 }
 
 func toReadModel(todo *domains.Todo) *interfaces.TodoReadModel {
 	if todo == nil {
 		return nil
+	}
+	tickets := make([]interfaces.TicketReadModel, 0, len(todo.Tickets))
+	for _, ticket := range todo.Tickets {
+		tickets = append(tickets, interfaces.TicketReadModel{
+			Id:     ticket.Id.Code,
+			Source: ticket.Id.Source,
+			Title:  ticket.Title,
+			Type:   string(ticket.Type),
+			Link:   ticket.Link,
+		})
 	}
 	return &interfaces.TodoReadModel{
 		Id:          todo.Id,
@@ -119,15 +130,16 @@ func toReadModel(todo *domains.Todo) *interfaces.TodoReadModel {
 		Status:      string(todo.Status),
 		CreatedDate: todo.CreatedDate,
 		UpdatedDate: todo.UpdatedDate,
+		Tickets:     tickets,
 	}
 }
 
 func (repo *PostgresTodoRepository) getById(ctx context.Context, id string, forUpdate bool, tx pgx.Tx) (error, *domains.Todo) {
 	query := `
-		 SELECT id, title, COALESCE(description, ''), COALESCE(changelog, ''), status,
-               EXTRACT(EPOCH FROM "createdAt")::bigint,
-               EXTRACT(EPOCH FROM "updatedAt")::bigint
-        FROM todos
+		 SELECT id, title, COALESCE(description, ''), COALESCE(changelog, ''), todo_status,
+               EXTRACT(EPOCH FROM created_at)::bigint,
+               EXTRACT(EPOCH FROM updated_at)::bigint
+        FROM tx_todos
         WHERE id = $1`
 	db := pgxQueryer(repo.Pool)
 	if forUpdate {
@@ -181,8 +193,8 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 
 	updatedAt := time.Unix(todo.UpdatedDate, 0).UTC()
 	tag, err := tx.Exec(ctx, `
-		UPDATE todos
-		SET title = $1, description = $2, changelog = $3, status = $4, "updatedAt" = $5
+		UPDATE tx_todos
+		SET title = $1, description = $2, changelog = $3, todo_status = $4, updated_at = $5
 		WHERE id = $6
 	`, todo.Title, todo.Description, todo.Changelog, todo.Status, updatedAt, todo.Id)
 	if err != nil {
@@ -202,7 +214,7 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 }
 
 func (repo *PostgresTodoRepository) DeleteById(ctx context.Context, id string) error {
-	tag, err := repo.Pool.Exec(ctx, `DELETE FROM todos WHERE id = $1`, id)
+	tag, err := repo.Pool.Exec(ctx, `DELETE FROM tx_todos WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -214,9 +226,10 @@ func (repo *PostgresTodoRepository) DeleteById(ctx context.Context, id string) e
 
 func listTickets(ctx context.Context, db pgxQueryer, todoID string) ([]domains.Ticket, error) {
 	rows, err := db.Query(ctx, `
-		SELECT title, type, link
-		FROM associated_tickets
-		WHERE "todoId" = $1
+		SELECT source, id, title, type, link
+		FROM tx_associated_tickets
+		WHERE todo_id = $1
+		ORDER BY source, id
 	`, todoID)
 	if err != nil {
 		return nil, err
@@ -226,13 +239,8 @@ func listTickets(ctx context.Context, db pgxQueryer, todoID string) ([]domains.T
 	var tickets []domains.Ticket
 	for rows.Next() {
 		var ticket domains.Ticket
-		var ticketType string
-		if err := rows.Scan(&ticket.Title, &ticketType, &ticket.Link); err != nil {
+		if err := rows.Scan(&ticket.Id.Source, &ticket.Id.Code, &ticket.Title, &ticket.Type, &ticket.Link); err != nil {
 			return nil, err
-		}
-		ticket.Type = fromDBTicketType(ticketType)
-		if _, ticketID := domains.ParseTicketId(ticket.Link); ticketID.Code != "" {
-			ticket.Id = ticketID
 		}
 		tickets = append(tickets, ticket)
 	}
@@ -241,21 +249,15 @@ func listTickets(ctx context.Context, db pgxQueryer, todoID string) ([]domains.T
 
 func upsertTickets(ctx context.Context, tx pgx.Tx, todo *domains.Todo, updatedAt time.Time) error {
 	for _, ticket := range todo.Tickets {
-		tag, err := tx.Exec(ctx, `
-			UPDATE associated_tickets
-			SET title = $1, type = $2, "updatedAt" = $3
-			WHERE "todoId" = $4 AND link = $5
-		`, ticket.Title, toDBTicketType(ticket.Type), updatedAt, todo.Id, ticket.Link)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() > 0 {
-			continue
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO associated_tickets (id, title, type, link, "todoId", "updatedAt")
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, uuid.NewString(), ticket.Title, toDBTicketType(ticket.Type), ticket.Link, todo.Id, updatedAt)
+		_, err := tx.Exec(ctx, `
+			INSERT INTO tx_associated_tickets (todo_id, source, id, title, type, link, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (todo_id, source, id) DO UPDATE
+			SET title = EXCLUDED.title,
+			    type = EXCLUDED.type,
+			    link = EXCLUDED.link,
+			    updated_at = EXCLUDED.updated_at
+		`, todo.Id, ticket.Id.Source, ticket.Id.Code, ticket.Title, ticket.Type, ticket.Link, updatedAt)
 		if err != nil {
 			return err
 		}
@@ -263,16 +265,39 @@ func upsertTickets(ctx context.Context, tx pgx.Tx, todo *domains.Todo, updatedAt
 	return nil
 }
 
-func toDBTicketType(ticketType domains.TicketType) string {
-	if strings.EqualFold(string(ticketType), string(domains.TicketTypeBug)) {
-		return "bug"
+func attachTickets(ctx context.Context, db pgxQueryer, todos []interfaces.TodoReadModel) error {
+	if len(todos) == 0 {
+		return nil
 	}
-	return "feature"
-}
+	ids := make([]string, len(todos))
+	indexByID := make(map[string]int, len(todos))
+	for i := range todos {
+		ids[i] = todos[i].Id
+		indexByID[todos[i].Id] = i
+		todos[i].Tickets = []interfaces.TicketReadModel{}
+	}
+	rows, err := db.Query(ctx, `
+		SELECT todo_id, source, id, title, type, link
+		FROM tx_associated_tickets
+		WHERE todo_id = ANY($1::text[])
+		ORDER BY source, id
+	`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
 
-func fromDBTicketType(ticketType string) domains.TicketType {
-	if strings.EqualFold(ticketType, "bug") {
-		return domains.TicketTypeBug
+	for rows.Next() {
+		var todoID string
+		var ticket interfaces.TicketReadModel
+		if err := rows.Scan(&todoID, &ticket.Source, &ticket.Id, &ticket.Title, &ticket.Type, &ticket.Link); err != nil {
+			return err
+		}
+		index, ok := indexByID[todoID]
+		if !ok {
+			continue
+		}
+		todos[index].Tickets = append(todos[index].Tickets, ticket)
 	}
-	return domains.TicketTypeFeature
+	return rows.Err()
 }

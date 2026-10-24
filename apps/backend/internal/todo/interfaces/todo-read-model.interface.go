@@ -2,6 +2,14 @@ package interfaces
 
 import "context"
 
+type TicketReadModel struct {
+	Id     string
+	Source string
+	Title  string
+	Type   string
+	Link   string
+}
+
 type TodoReadModel struct {
 	Id          string
 	Title       string
@@ -10,6 +18,7 @@ type TodoReadModel struct {
 	Status      string
 	CreatedDate int64
 	UpdatedDate int64
+	Tickets     []TicketReadModel
 }
 
 type ITodoReadModel interface {

@@ -1,0 +1,46 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/todos'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Write docs",
+      "description": "cqrs",
+      "changelog": "",
+      "status": "NOT_STARTED",
+      "tickets": [
+        {
+          "id": "PROJ-1234",
+          "source": "JIRA",
+          "title": "Login fails on empty password",
+          "type": "BUG",
+          "link": "https://your-domain.atlassian.net/browse/PROJ-1234"
+        }
+      ]
+    }
+examples: './.resources/create todo.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('creates a todo and its tickets', function () {
+        pm.response.to.have.status(200);
+        const body = pm.response.json();
+        pm.expect(body.data.title).to.eql('Write docs');
+        pm.expect(body.data.status).to.eql('NOT_STARTED');
+        pm.expect(body.data.tickets).to.eql([
+          {
+            id: 'PROJ-1234',
+            source: 'JIRA',
+            title: 'Login fails on empty password',
+            type: 'BUG',
+            link: 'https://your-domain.atlassian.net/browse/PROJ-1234'
+          }
+        ]);
+        pm.collectionVariables.set('todo_id', body.data.id);
+      });

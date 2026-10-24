@@ -2,37 +2,12 @@ package domains
 
 import (
 	"fmt"
-	"strings"
 	"time"
+
 	"todox-backend/internal/shared"
 
 	"github.com/google/uuid"
 )
-
-type TicketType string
-
-const (
-	TicketTypeFeature TicketType = "FEATURE"
-	TicketTypeBug     TicketType = "BUG"
-)
-
-type TicketId struct {
-	Source string
-	Code   string
-}
-
-type Ticket struct {
-	Id    TicketId
-	Link  string
-	Type  TicketType
-	Title string
-}
-
-type NewTicket struct {
-	Link  string
-	Type  TicketType
-	Title string
-}
 
 type TodoStatus string
 
@@ -60,7 +35,7 @@ type NewTodo struct {
 	Description string
 	Changelog   string
 	Status      TodoStatus
-	Tickets     []Ticket
+	Tickets     []NewTicket
 }
 
 type UpdatedTodoInfo struct {
@@ -70,50 +45,29 @@ type UpdatedTodoInfo struct {
 	Tickets     []NewTicket
 }
 
-func (ticketIdA *TicketId) Equals(ticketIdB *TicketId) bool {
-	return ticketIdA.Code == ticketIdB.Code && ticketIdA.Source == ticketIdB.Source
-}
-
 func (t *Todo) UpdateStatus(newStatus TodoStatus) {
 	t.Status = newStatus
 	t.UpdatedDate = time.Now().Unix()
 }
 
 func (t *Todo) UpdateInfo(updatedInfo UpdatedTodoInfo) shared.BaseDomainError {
-	t.Title = updatedInfo.Title
-	t.Description = updatedInfo.Description
-	t.Changelog = updatedInfo.Changelog
+	staged := Todo{Tickets: append([]Ticket(nil), t.Tickets...)}
 	for _, ticket := range updatedInfo.Tickets {
-		if err := t.AddTicket(ticket); err != nil {
+		if err := staged.AddTicket(ticket); err != nil {
 			return err
 		}
 	}
+	t.Tickets = staged.Tickets
+	t.Title = updatedInfo.Title
+	t.Description = updatedInfo.Description
+	t.Changelog = updatedInfo.Changelog
 	t.UpdatedDate = time.Now().Unix()
 	return nil
 }
 
-func (t *Todo) AddTicket(data NewTicket) shared.BaseDomainError {
-	var err, ticketId = ParseTicketId(data.Link)
-	if err != nil {
-		return InvalidTicketIdFormatError{TicketId: data.Link}
-	}
-	for _, d := range t.Tickets {
-		if d.Id.Equals(&ticketId) {
-			continue
-		}
-	}
-	t.Tickets = append(t.Tickets, Ticket{
-		Id:    ticketId,
-		Title: data.Title,
-		Link:  data.Link,
-		Type:  data.Type,
-	})
-	return nil
-}
-
-func CreateNew(todo NewTodo) *Todo {
+func CreateNew(todo NewTodo) (shared.BaseDomainError, *Todo) {
 	createdDate := time.Now().Unix()
-	return &Todo{
+	created := &Todo{
 		Id:          uuid.New().String(),
 		Title:       todo.Title,
 		Description: todo.Description,
@@ -122,6 +76,10 @@ func CreateNew(todo NewTodo) *Todo {
 		UpdatedDate: createdDate,
 		Status:      todo.Status,
 	}
+	if err := created.ReplaceTickets(todo.Tickets); err != nil {
+		return err, nil
+	}
+	return nil, created
 }
 
 func ParseTodoStatus(status string) (TodoStatus, error) {
@@ -134,25 +92,5 @@ func ParseTodoStatus(status string) (TodoStatus, error) {
 		return todoStatus, nil
 	default:
 		return "", fmt.Errorf("invalid todo status %q", status)
-	}
-}
-
-func ParseTicketId(link string) (error, TicketId) {
-	// Example of Jira URL: https://your-domain.atlassian.net/browse/PROJ-1234
-	parts := strings.Split(link, "/")
-	if len(parts) == 0 {
-		return fmt.Errorf("cannot parse ticket id from link: %q", link), TicketId{}
-	}
-	ticketId := parts[len(parts)-1]
-	if ticketId == "" && len(parts) > 1 {
-		ticketId = parts[len(parts)-2]
-	}
-	// Minimal validation: TicketID should be in format PROJECT-123
-	if len(ticketId) < 2 || !strings.Contains(ticketId, "-") {
-		return fmt.Errorf("cannot parse ticket id from link: %q", link), TicketId{}
-	}
-	return nil, TicketId{
-		Source: "JIRA",
-		Code:   ticketId,
 	}
 }

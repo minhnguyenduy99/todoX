@@ -17,14 +17,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type TicketResponse struct {
+	Id     string `json:"id"`
+	Source string `json:"source"`
+	Title  string `json:"title"`
+	Type   string `json:"type"`
+	Link   string `json:"link"`
+}
+
+type TicketDto struct {
+	Id     string             `json:"id" validate:"required,min=1,max=200"`
+	Source string             `json:"source" validate:"required,min=1,max=100"`
+	Title  string             `json:"title" validate:"required,min=1,max=200"`
+	Type   domains.TicketType `json:"type" validate:"required,oneof=FEATURE BUG"`
+	Link   string             `json:"link" validate:"required,url,max=2048"`
+}
+
 type TodoItemResponse struct {
-	Id          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Changelog   string `json:"changelog"`
-	Status      string `json:"status"`
-	CreatedDate int64  `json:"created_date"`
-	UpdatedDate int64  `json:"updated_date"`
+	Id          string           `json:"id"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Changelog   string           `json:"changelog"`
+	Status      string           `json:"status"`
+	CreatedDate int64            `json:"created_date"`
+	UpdatedDate int64            `json:"updated_date"`
+	Tickets     []TicketResponse `json:"tickets"`
 }
 
 type CreateTodoDto struct {
@@ -32,20 +49,23 @@ type CreateTodoDto struct {
 	Description string             `json:"description" validate:"max=2000"`
 	Changelog   string             `json:"changelog" validate:"max=2000"`
 	Status      domains.TodoStatus `json:"status" validate:"required,oneof=NOT_STARTED IN_PROGRESS TESTING WAIT_FOR_STAGING COMPLETED"`
+	Tickets     []TicketDto        `json:"tickets" validate:"omitempty,dive"`
 }
 
 type UpdateTodoInfoDto struct {
-	Title       string `json:"title" validate:"required,min=1,max=255"`
-	Description string `json:"description,omitempty" validate:"omitempty,max=2000"`
-	Changelog   string `json:"changelog,omitempty" validate:"omitempty,max=2000"`
+	Title       string       `json:"title" validate:"required,min=1,max=255"`
+	Description string       `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Changelog   string       `json:"changelog,omitempty" validate:"omitempty,max=2000"`
+	Tickets     *[]TicketDto `json:"tickets" validate:"omitempty,dive"`
 }
 
 type UpdateTodoInfoResponse struct {
-	Id          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Changelog   string `json:"changelog"`
-	UpdatedDate int64  `json:"updated_date"`
+	Id          string           `json:"id"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Changelog   string           `json:"changelog"`
+	UpdatedDate int64            `json:"updated_date"`
+	Tickets     []TicketResponse `json:"tickets"`
 }
 
 type ListTodosResponse struct {
@@ -98,6 +118,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request, handler *commands.
 		Description: body.Description,
 		Changelog:   body.Changelog,
 		Status:      body.Status,
+		Tickets:     newTickets(body.Tickets),
 	})
 	w.Header().Set("content-type", "application/json")
 	if err != nil {
@@ -115,6 +136,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request, handler *commands.
 			Status:      string(result.Status),
 			CreatedDate: result.CreatedDate,
 			UpdatedDate: result.UpdatedDate,
+			Tickets:     ticketResponses(result.Tickets),
 		},
 	})
 }
@@ -141,6 +163,7 @@ func handleListTodos(w http.ResponseWriter, r *http.Request, handler *queries.Li
 			Status:      string(item.Status),
 			CreatedDate: item.CreatedDate,
 			UpdatedDate: item.UpdatedDate,
+			Tickets:     ticketResponses(item.Tickets),
 		})
 	}
 	json.NewEncoder(w).Encode(ListTodosResponse{
@@ -169,6 +192,7 @@ func handleGetTodoById(w http.ResponseWriter, r *http.Request, handler *queries.
 			Status:      string(result.Status),
 			CreatedDate: result.CreatedDate,
 			UpdatedDate: result.UpdatedDate,
+			Tickets:     ticketResponses(result.Tickets),
 		},
 	})
 }
@@ -181,6 +205,9 @@ func handleUpdateTodoInfo(w http.ResponseWriter, r *http.Request, handler *comma
 		Title:       body.Title,
 		Description: body.Description,
 		Changelog:   body.Changelog,
+	}
+	if body.Tickets != nil {
+		input.Tickets = newTickets(*body.Tickets)
 	}
 	result, err := handler.Handle(r.Context(), &input)
 	w.Header().Set("content-type", "application/json")
@@ -197,8 +224,37 @@ func handleUpdateTodoInfo(w http.ResponseWriter, r *http.Request, handler *comma
 			Description: result.Description,
 			Changelog:   result.Changelog,
 			UpdatedDate: result.UpdatedDate,
+			Tickets:     ticketResponses(result.Tickets),
 		},
 	})
+}
+
+func newTickets(tickets []TicketDto) []domains.NewTicket {
+	mapped := make([]domains.NewTicket, 0, len(tickets))
+	for _, ticket := range tickets {
+		mapped = append(mapped, domains.NewTicket{
+			Id:     ticket.Id,
+			Source: ticket.Source,
+			Title:  ticket.Title,
+			Type:   ticket.Type,
+			Link:   ticket.Link,
+		})
+	}
+	return mapped
+}
+
+func ticketResponses(tickets []domains.Ticket) []TicketResponse {
+	mapped := make([]TicketResponse, 0, len(tickets))
+	for _, ticket := range tickets {
+		mapped = append(mapped, TicketResponse{
+			Id:     ticket.Id.Code,
+			Source: ticket.Id.Source,
+			Title:  ticket.Title,
+			Type:   string(ticket.Type),
+			Link:   ticket.Link,
+		})
+	}
+	return mapped
 }
 
 func handleDeleteTodo(w http.ResponseWriter, r *http.Request, handler *commands.DeleteTodoHandler) {

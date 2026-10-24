@@ -12,6 +12,7 @@ type CreateTodo struct {
 	Description string             `json:"description"`
 	Changelog   string             `json:"changelog"`
 	Status      domains.TodoStatus `json:"status"`
+	Tickets     []domains.NewTicket
 }
 
 type CreateTodoResult struct {
@@ -22,6 +23,7 @@ type CreateTodoResult struct {
 	Status      domains.TodoStatus `json:"status"`
 	CreatedDate int64              `json:"created_date"`
 	UpdatedDate int64              `json:"updated_date"`
+	Tickets     []domains.Ticket
 }
 
 type CreateTodoHandler struct {
@@ -29,16 +31,20 @@ type CreateTodoHandler struct {
 }
 
 func (h *CreateTodoHandler) Handle(ctx context.Context, cmd *CreateTodo) (CreateTodoResult, error) {
+	domainErr, todo := domains.CreateNew(domains.NewTodo{
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		Changelog:   cmd.Changelog,
+		Status:      cmd.Status,
+		Tickets:     cmd.Tickets,
+	})
+	if domainErr != nil {
+		return CreateTodoResult{}, domainErr
+	}
+
 	err, todo := h.Repo.Create(ctx, func() *domains.Todo {
-		todo := domains.CreateNew(domains.NewTodo{
-			Title:       cmd.Title,
-			Description: cmd.Description,
-			Changelog:   cmd.Changelog,
-			Status:      cmd.Status,
-		})
 		return todo
 	})
-
 	if err != nil {
 		return CreateTodoResult{}, err
 	}
@@ -51,5 +57,6 @@ func (h *CreateTodoHandler) Handle(ctx context.Context, cmd *CreateTodo) (Create
 		Status:      todo.Status,
 		CreatedDate: todo.CreatedDate,
 		UpdatedDate: todo.UpdatedDate,
+		Tickets:     todo.Tickets,
 	}, nil
 }

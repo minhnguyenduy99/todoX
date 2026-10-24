@@ -1,0 +1,19 @@
+$kind: http-example
+name: 400 Missing custom ticket id
+request:
+  url: '{{base_url}}/todos'
+  method: POST
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    - key: content-type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": "validation_failed",
+        "message": "id required"
+      }
+order: 2000

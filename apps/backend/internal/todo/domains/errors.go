@@ -15,6 +15,19 @@ func (e InvalidTicketIdFormatError) Error() string {
 	return message
 }
 
+type InvalidTicketTypeError struct {
+	Type string
+}
+
+func (e InvalidTicketTypeError) Get() (string, string) {
+	return "INVALID_TICKET_TYPE", fmt.Sprintf("Invalid ticket type: %s", e.Type)
+}
+
+func (e InvalidTicketTypeError) Error() string {
+	_, message := e.Get()
+	return message
+}
+
 type TodoNotFoundError struct {
 	ID string
 }

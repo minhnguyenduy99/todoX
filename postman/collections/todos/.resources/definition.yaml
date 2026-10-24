@@ -1,6 +1,12 @@
 $kind: collection
 name: Todos
-description: Todo resource contract for the todoX backend.
+description: |-
+  Todo resource contract for the todoX backend.
+  Create and update accept a tickets array. Ticket type is FEATURE or BUG.
+  Each ticket requires id and source, supplied by the client. The API does not parse an id from the link.
+  A ticket is unique per todo on (source, id).
+  On update, each sent ticket is inserted or updated by (source, id). Tickets omitted from the request stay.
+  Todo and ticket rows are stored in tx_todos and tx_associated_tickets and are written in one database transaction.
 variables:
   - key: base_url
     value: 'http://localhost:8080'

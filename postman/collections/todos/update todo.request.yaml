@@ -1,0 +1,63 @@
+$kind: http-request
+method: PATCH
+url: '{{base_url}}/todos/:id'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{todo_id}}'
+    description: Todo id returned by POST /todos.
+body:
+  type: json
+  content: |-
+    {
+      "title": "Write the docs",
+      "description": "cqrs",
+      "changelog": "renamed the task",
+      "tickets": [
+        {
+          "id": "PROJ-1234",
+          "source": "JIRA",
+          "title": "Login timeout",
+          "type": "BUG",
+          "link": "https://your-domain.atlassian.net/browse/PROJ-1234"
+        },
+        {
+          "id": "GH-88",
+          "source": "GITHUB",
+          "title": "Add export",
+          "type": "FEATURE",
+          "link": "https://github.com/acme/app/issues/88"
+        }
+      ]
+    }
+examples: './.resources/update todo.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('updates the todo and replaces its tickets', function () {
+        pm.response.to.have.status(200);
+        const body = pm.response.json();
+        pm.expect(body.data.id).to.eql(pm.collectionVariables.get('todo_id'));
+        pm.expect(body.data.title).to.eql('Write the docs');
+        pm.expect(body.data.changelog).to.eql('renamed the task');
+        pm.expect(body.data.tickets).to.eql([
+          {
+            id: 'PROJ-1234',
+            source: 'JIRA',
+            title: 'Login timeout',
+            type: 'BUG',
+            link: 'https://your-domain.atlassian.net/browse/PROJ-1234'
+          },
+          {
+            id: 'GH-88',
+            source: 'GITHUB',
+            title: 'Add export',
+            type: 'FEATURE',
+            link: 'https://github.com/acme/app/issues/88'
+          }
+        ]);
+      });

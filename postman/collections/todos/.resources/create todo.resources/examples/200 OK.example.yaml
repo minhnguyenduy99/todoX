@@ -1,0 +1,35 @@
+$kind: http-example
+name: 200 OK
+request:
+  url: '{{base_url}}/todos'
+  method: POST
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    - key: content-type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "6f1c0c3e-1b2a-4d5e-8f70-9a1b2c3d4e5f",
+          "title": "Write docs",
+          "description": "cqrs",
+          "changelog": "",
+          "status": "NOT_STARTED",
+          "created_date": 1761292800,
+          "updated_date": 1761292800,
+          "tickets": [
+            {
+              "id": "PROJ-1234",
+              "source": "JIRA",
+              "title": "Login fails on empty password",
+              "type": "BUG",
+              "link": "https://your-domain.atlassian.net/browse/PROJ-1234"
+            }
+          ]
+        }
+      }
+order: 1000

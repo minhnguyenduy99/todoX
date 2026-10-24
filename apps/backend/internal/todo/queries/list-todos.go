@@ -19,6 +19,7 @@ type ListTodosItem struct {
 	Status      domains.TodoStatus
 	CreatedDate int64
 	UpdatedDate int64
+	Tickets     []domains.Ticket
 }
 
 type ListTodosResult struct {
@@ -51,6 +52,7 @@ func (h *ListTodosHandler) Handle(ctx context.Context, query *ListTodos) (ListTo
 			Status:      domains.TodoStatus(todo.Status),
 			CreatedDate: todo.CreatedDate,
 			UpdatedDate: todo.UpdatedDate,
+			Tickets:     ticketsFromReadModel(todo.Tickets),
 		})
 	}
 

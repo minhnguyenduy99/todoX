@@ -1,7 +1,7 @@
 $kind: http-request
 method: DELETE
 url: '{{base_url}}/todos/:id'
-order: 1000
+order: 4000
 pathVariables:
   - key: id
     value: '{{todo_id}}'
