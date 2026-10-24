@@ -46,3 +46,19 @@ Patterns to follow:
 # Important rules
 
 - NEVER change the API contract nor database without user asking to do so. If it is critical to fulfill the requirement that user has not been aware yet, stop immediately and notice the user about this.
+
+## Domain Driven Design rules
+
+- In the domain layer, always use names that already exist in the business domain. Do not introduce a new concept.
+
+Good. The parameter is a `[]TicketId`, and `TicketId` is the domain name:
+
+```go
+func (t *Todo) RemoveTickets(ids []TicketId) shared.BaseDomainError
+```
+
+Bad. `refs` is not a concept in this domain:
+
+```go
+func (t *Todo) RemoveTickets(refs []TicketId) shared.BaseDomainError
+```
