@@ -55,6 +55,16 @@ func (repo *PostgresTodoRepository) Create(ctx context.Context, handler func() *
 			return err, nil
 		}
 	}
+	for i, subtask := range todo.Subtasks {
+		_, err = tx.Exec(ctx, `
+		INSERT INTO tx_subtasks (id, todo_id, title, status, position, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, subtask.Id, todo.Id, subtask.Title, subtask.Status, i,
+			time.Unix(todo.UpdatedDate, 0).UTC())
+		if err != nil {
+			return err, nil
+		}
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return err, nil
@@ -105,6 +115,9 @@ func (repo *PostgresTodoRepository) List(ctx context.Context, status *string) (e
 	if err := attachTickets(ctx, repo.Pool, todos); err != nil {
 		return err, nil
 	}
+	if err := attachSubtasks(ctx, repo.Pool, todos); err != nil {
+		return err, nil
+	}
 	return nil, todos
 }
 
@@ -122,6 +135,14 @@ func toReadModel(todo *domains.Todo) *interfaces.TodoReadModel {
 			Link:   ticket.Link,
 		})
 	}
+	subtasks := make([]interfaces.SubtaskReadModel, 0, len(todo.Subtasks))
+	for _, subtask := range todo.Subtasks {
+		subtasks = append(subtasks, interfaces.SubtaskReadModel{
+			Id:     subtask.Id,
+			Title:  subtask.Title,
+			Status: string(subtask.Status),
+		})
+	}
 	return &interfaces.TodoReadModel{
 		Id:          todo.Id,
 		Title:       todo.Title,
@@ -131,6 +152,7 @@ func toReadModel(todo *domains.Todo) *interfaces.TodoReadModel {
 		CreatedDate: todo.CreatedDate,
 		UpdatedDate: todo.UpdatedDate,
 		Tickets:     tickets,
+		Subtasks:    subtasks,
 	}
 }
 
@@ -168,6 +190,11 @@ func (repo *PostgresTodoRepository) getById(ctx context.Context, id string, forU
 		return err, nil
 	}
 	todo.Tickets = tickets
+	subtasks, err := listSubtasks(ctx, db, id)
+	if err != nil {
+		return err, nil
+	}
+	todo.Subtasks = subtasks
 	return nil, &todo
 }
 
@@ -210,6 +237,12 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 	if err := deleteRemovedTickets(ctx, tx, todo); err != nil {
 		return err, nil
 	}
+	if err := upsertSubtasks(ctx, tx, todo, updatedAt); err != nil {
+		return err, nil
+	}
+	if err := deleteRemovedSubtasks(ctx, tx, todo); err != nil {
+		return err, nil
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err, nil
 	}
@@ -217,14 +250,26 @@ func (repo *PostgresTodoRepository) Update(ctx context.Context, todoId string, h
 }
 
 func (repo *PostgresTodoRepository) DeleteById(ctx context.Context, id string) error {
-	tag, err := repo.Pool.Exec(ctx, `DELETE FROM tx_todos WHERE id = $1`, id)
+	tx, err := repo.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM tx_associated_tickets WHERE todo_id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM tx_subtasks WHERE todo_id = $1`, id); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM tx_todos WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return domains.TodoNotFoundError{ID: id}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func listTickets(ctx context.Context, db pgxQueryer, todoID string) ([]domains.Ticket, error) {
@@ -286,6 +331,97 @@ func deleteRemovedTickets(ctx context.Context, tx pgx.Tx, todo *domains.Todo) er
 		  )
 	`, todo.Id, sources, ids)
 	return err
+}
+
+func listSubtasks(ctx context.Context, db pgxQueryer, todoID string) ([]domains.Subtask, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, title, status
+		FROM tx_subtasks
+		WHERE todo_id = $1
+		ORDER BY position, id
+	`, todoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subtasks []domains.Subtask
+	for rows.Next() {
+		var subtask domains.Subtask
+		if err := rows.Scan(&subtask.Id, &subtask.Title, &subtask.Status); err != nil {
+			return nil, err
+		}
+		subtasks = append(subtasks, subtask)
+	}
+	return subtasks, rows.Err()
+}
+
+func upsertSubtasks(ctx context.Context, tx pgx.Tx, todo *domains.Todo, updatedAt time.Time) error {
+	for i, subtask := range todo.Subtasks {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO tx_subtasks (id, todo_id, title, status, position, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (id) DO UPDATE
+			SET title = EXCLUDED.title,
+			    status = EXCLUDED.status,
+			    position = EXCLUDED.position,
+			    updated_at = EXCLUDED.updated_at
+		`, subtask.Id, todo.Id, subtask.Title, subtask.Status, i, updatedAt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteRemovedSubtasks(ctx context.Context, tx pgx.Tx, todo *domains.Todo) error {
+	ids := make([]string, len(todo.Subtasks))
+	for i, subtask := range todo.Subtasks {
+		ids[i] = subtask.Id
+	}
+	_, err := tx.Exec(ctx, `
+		DELETE FROM tx_subtasks
+		WHERE todo_id = $1
+		  AND NOT (id = ANY($2::text[]))
+	`, todo.Id, ids)
+	return err
+}
+
+func attachSubtasks(ctx context.Context, db pgxQueryer, todos []interfaces.TodoReadModel) error {
+	if len(todos) == 0 {
+		return nil
+	}
+	ids := make([]string, len(todos))
+	indexByID := make(map[string]int, len(todos))
+	for i := range todos {
+		ids[i] = todos[i].Id
+		indexByID[todos[i].Id] = i
+		todos[i].Subtasks = []interfaces.SubtaskReadModel{}
+	}
+	rows, err := db.Query(ctx, `
+		SELECT todo_id, id, title, status
+		FROM tx_subtasks
+		WHERE todo_id = ANY($1::text[])
+		ORDER BY position, id
+	`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var todoID string
+		var subtask interfaces.SubtaskReadModel
+		if err := rows.Scan(&todoID, &subtask.Id, &subtask.Title, &subtask.Status); err != nil {
+			return err
+		}
+		index, ok := indexByID[todoID]
+		if !ok {
+			continue
+		}
+		todos[index].Subtasks = append(todos[index].Subtasks, subtask)
+	}
+	return rows.Err()
 }
 
 func attachTickets(ctx context.Context, db pgxQueryer, todos []interfaces.TodoReadModel) error {

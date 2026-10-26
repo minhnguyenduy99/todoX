@@ -16,9 +16,15 @@ type InMemRepository struct{}
 
 var todoList = []domains.Todo{}
 
+func cloneTodo(todo domains.Todo) domains.Todo {
+	todo.Tickets = append([]domains.Ticket(nil), todo.Tickets...)
+	todo.Subtasks = append([]domains.Subtask(nil), todo.Subtasks...)
+	return todo
+}
+
 func (repo *InMemRepository) Create(ctx context.Context, handler func() *domains.Todo) (error, *domains.Todo) {
 	item := handler()
-	todoList = append(todoList, *item)
+	todoList = append(todoList, cloneTodo(*item))
 	return nil, item
 }
 
@@ -58,7 +64,8 @@ func (repo *InMemRepository) Update(ctx context.Context, todoId string, handler 
 	if err != nil {
 		return err, nil
 	}
-	err, todo := handler(existing)
+	copied := cloneTodo(*existing)
+	err, todo := handler(&copied)
 	if err != nil {
 		return err, nil
 	}
@@ -67,7 +74,7 @@ func (repo *InMemRepository) Update(ctx context.Context, todoId string, handler 
 	}
 	for i := range todoList {
 		if todoList[i].Id == todo.Id {
-			todoList[i] = *todo
+			todoList[i] = cloneTodo(*todo)
 			return nil, todo
 		}
 	}

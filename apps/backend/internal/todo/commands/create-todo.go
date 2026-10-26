@@ -13,6 +13,7 @@ type CreateTodo struct {
 	Changelog   string             `json:"changelog"`
 	Status      domains.TodoStatus `json:"status"`
 	Tickets     []domains.NewTicket
+	Subtasks    []domains.NewSubtask
 }
 
 type CreateTodoResult struct {
@@ -24,6 +25,7 @@ type CreateTodoResult struct {
 	CreatedDate int64              `json:"created_date"`
 	UpdatedDate int64              `json:"updated_date"`
 	Tickets     []domains.Ticket
+	Subtasks    []domains.Subtask
 }
 
 type CreateTodoHandler struct {
@@ -37,6 +39,7 @@ func (h *CreateTodoHandler) Handle(ctx context.Context, cmd *CreateTodo) (Create
 		Changelog:   cmd.Changelog,
 		Status:      cmd.Status,
 		Tickets:     cmd.Tickets,
+		Subtasks:    cmd.Subtasks,
 	})
 	if domainErr != nil {
 		return CreateTodoResult{}, domainErr
@@ -58,5 +61,6 @@ func (h *CreateTodoHandler) Handle(ctx context.Context, cmd *CreateTodo) (Create
 		CreatedDate: todo.CreatedDate,
 		UpdatedDate: todo.UpdatedDate,
 		Tickets:     todo.Tickets,
+		Subtasks:    todo.Subtasks,
 	}, nil
 }

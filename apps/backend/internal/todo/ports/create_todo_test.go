@@ -46,6 +46,9 @@ func TestCreateTodo(t *testing.T) {
 	if len(created.Data.Tickets) != 0 {
 		t.Fatalf("expected no tickets, got %+v", created.Data.Tickets)
 	}
+	if created.Data.Subtasks == nil || len(created.Data.Subtasks) != 0 {
+		t.Fatalf("expected no subtasks, got %+v", created.Data.Subtasks)
+	}
 }
 
 func TestCreateTodoWithTickets(t *testing.T) {

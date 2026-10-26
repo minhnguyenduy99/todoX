@@ -7,8 +7,23 @@ description: |-
   A ticket is unique per todo on (source, id).
   On update, each sent ticket is inserted or updated by (source, id). Tickets omitted from the request stay.
   POST /todos/:id/deleteTickets removes the listed tickets. Each item needs source and id. A ticket that is not on the todo is ignored. The response is the todo with the tickets that remain.
-  Todo and ticket rows are stored in tx_todos and tx_associated_tickets and are written in one database transaction.
+  Create and update also accept a subtasks array. A subtask has a title and a status of NOT_STARTED, IN_PROGRESS, or COMPLETED.
+  The server assigns each subtask id. Omit id to add one. Send an existing id to update that subtask. A client-supplied id on create is ignored.
+  Omit status when adding a subtask and it becomes NOT_STARTED. Omit status when updating and the current status stays.
+  Omit the subtasks field, or send an empty array, and the existing subtasks stay.
+  POST /todos/:id/removeSubtasks removes the listed subtasks by id. If any id is not on the todo, the API returns 400 SUBTASK_NOT_FOUND with missing_ids and removes nothing.
+  Deleting a todo deletes its tickets and subtasks.
+  Todo, ticket, and subtask rows are stored in tx_todos, tx_associated_tickets, and tx_subtasks and are written in one database transaction.
 variables:
   - key: base_url
     value: 'http://localhost:8080'
     description: Backend origin, including scheme and port.
+  - key: subtask_id
+    value: ''
+    description: First subtask id returned by POST /todos.
+  - key: subtask_id_2
+    value: ''
+    description: Second subtask id returned by POST /todos.
+  - key: subtask_id_3
+    value: ''
+    description: Subtask id added by PATCH /todos/:id.

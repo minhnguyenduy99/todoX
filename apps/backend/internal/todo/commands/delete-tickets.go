@@ -21,6 +21,7 @@ type DeleteTicketsResult struct {
 	CreatedDate int64
 	UpdatedDate int64
 	Tickets     []domains.Ticket
+	Subtasks    []domains.Subtask
 }
 
 type DeleteTicketsHandler struct {
@@ -47,5 +48,6 @@ func (h *DeleteTicketsHandler) Handle(ctx context.Context, cmd *DeleteTickets) (
 		CreatedDate: updated.CreatedDate,
 		UpdatedDate: updated.UpdatedDate,
 		Tickets:     updated.Tickets,
+		Subtasks:    updated.Subtasks,
 	}, nil
 }

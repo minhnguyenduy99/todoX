@@ -33,15 +33,28 @@ type TicketDto struct {
 	Link   string             `json:"link" validate:"required,url,max=2048"`
 }
 
+type SubtaskResponse struct {
+	Id     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
+type SubtaskDto struct {
+	Id     string                 `json:"id" validate:"omitempty,uuid"`
+	Title  string                 `json:"title" validate:"required,min=1,max=200"`
+	Status *domains.SubtaskStatus `json:"status" validate:"omitempty,oneof=NOT_STARTED IN_PROGRESS COMPLETED"`
+}
+
 type TodoItemResponse struct {
-	Id          string           `json:"id"`
-	Title       string           `json:"title"`
-	Description string           `json:"description"`
-	Changelog   string           `json:"changelog"`
-	Status      string           `json:"status"`
-	CreatedDate int64            `json:"created_date"`
-	UpdatedDate int64            `json:"updated_date"`
-	Tickets     []TicketResponse `json:"tickets"`
+	Id          string            `json:"id"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Changelog   string            `json:"changelog"`
+	Status      string            `json:"status"`
+	CreatedDate int64             `json:"created_date"`
+	UpdatedDate int64             `json:"updated_date"`
+	Tickets     []TicketResponse  `json:"tickets"`
+	Subtasks    []SubtaskResponse `json:"subtasks"`
 }
 
 type CreateTodoDto struct {
@@ -50,6 +63,7 @@ type CreateTodoDto struct {
 	Changelog   string             `json:"changelog" validate:"max=2000"`
 	Status      domains.TodoStatus `json:"status" validate:"required,oneof=NOT_STARTED IN_PROGRESS TESTING WAIT_FOR_STAGING COMPLETED"`
 	Tickets     []TicketDto        `json:"tickets" validate:"omitempty,dive"`
+	Subtasks    []SubtaskDto       `json:"subtasks" validate:"omitempty,dive"`
 }
 
 type DeleteTicketRefDto struct {
@@ -61,20 +75,30 @@ type DeleteTicketsDto struct {
 	Tickets []DeleteTicketRefDto `json:"tickets" validate:"required,min=1,dive"`
 }
 
+type RemoveSubtaskRefDto struct {
+	Id string `json:"id" validate:"required,uuid"`
+}
+
+type RemoveSubtasksDto struct {
+	Subtasks []RemoveSubtaskRefDto `json:"subtasks" validate:"required,min=1,dive"`
+}
+
 type UpdateTodoInfoDto struct {
-	Title       string       `json:"title" validate:"required,min=1,max=255"`
-	Description string       `json:"description,omitempty" validate:"omitempty,max=2000"`
-	Changelog   string       `json:"changelog,omitempty" validate:"omitempty,max=2000"`
-	Tickets     *[]TicketDto `json:"tickets" validate:"omitempty,dive"`
+	Title       string        `json:"title" validate:"required,min=1,max=255"`
+	Description string        `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Changelog   string        `json:"changelog,omitempty" validate:"omitempty,max=2000"`
+	Tickets     *[]TicketDto  `json:"tickets" validate:"omitempty,dive"`
+	Subtasks    *[]SubtaskDto `json:"subtasks" validate:"omitempty,dive"`
 }
 
 type UpdateTodoInfoResponse struct {
-	Id          string           `json:"id"`
-	Title       string           `json:"title"`
-	Description string           `json:"description"`
-	Changelog   string           `json:"changelog"`
-	UpdatedDate int64            `json:"updated_date"`
-	Tickets     []TicketResponse `json:"tickets"`
+	Id          string            `json:"id"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Changelog   string            `json:"changelog"`
+	UpdatedDate int64             `json:"updated_date"`
+	Tickets     []TicketResponse  `json:"tickets"`
+	Subtasks    []SubtaskResponse `json:"subtasks"`
 }
 
 type ListTodosResponse struct {
@@ -95,6 +119,7 @@ func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel i
 	createTodo := &commands.CreateTodoHandler{Repo: todoRepo}
 	updateTodoInfo := &commands.UpdateTodoInfoHandler{Repo: todoRepo}
 	deleteTickets := &commands.DeleteTicketsHandler{Repo: todoRepo}
+	removeSubtasks := &commands.RemoveSubtasksHandler{Repo: todoRepo}
 	deleteTodo := &commands.DeleteTodoHandler{Repo: todoRepo}
 	getTodoById := &queries.GetTodoByIdHandler{ReadModel: todoReadModel}
 	listTodos := &queries.ListTodosHandler{ReadModel: todoReadModel}
@@ -119,6 +144,10 @@ func Register(r chi.Router, todoRepo interfaces.ITodoRepository, todoReadModel i
 		"/todos/{id}/deleteTickets",
 		func(w http.ResponseWriter, r *http.Request) { handleDeleteTickets(w, r, deleteTickets) },
 	)
+	r.With(infras.ValidateMiddleware[RemoveSubtasksDto]("BODY")).Post(
+		"/todos/{id}/removeSubtasks",
+		func(w http.ResponseWriter, r *http.Request) { handleRemoveSubtasks(w, r, removeSubtasks) },
+	)
 	r.Delete(
 		"/todos/{id}",
 		func(w http.ResponseWriter, r *http.Request) { handleDeleteTodo(w, r, deleteTodo) },
@@ -133,6 +162,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request, handler *commands.
 		Changelog:   body.Changelog,
 		Status:      body.Status,
 		Tickets:     newTickets(body.Tickets),
+		Subtasks:    newSubtasks(body.Subtasks),
 	})
 	w.Header().Set("content-type", "application/json")
 	if err != nil {
@@ -151,6 +181,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request, handler *commands.
 			CreatedDate: result.CreatedDate,
 			UpdatedDate: result.UpdatedDate,
 			Tickets:     ticketResponses(result.Tickets),
+			Subtasks:    subtaskResponses(result.Subtasks),
 		},
 	})
 }
@@ -170,14 +201,15 @@ func handleListTodos(w http.ResponseWriter, r *http.Request, handler *queries.Li
 	items := make([]TodoItemResponse, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, TodoItemResponse{
-			Id:          item.ID,
+			Id:          item.Id,
 			Title:       item.Title,
 			Description: item.Description,
 			Changelog:   item.Changelog,
-			Status:      string(item.Status),
+			Status:      item.Status,
 			CreatedDate: item.CreatedDate,
 			UpdatedDate: item.UpdatedDate,
-			Tickets:     ticketResponses(item.Tickets),
+			Tickets:     readModelTicketResponses(item.Tickets),
+			Subtasks:    readModelSubtaskResponses(item.Subtasks),
 		})
 	}
 	json.NewEncoder(w).Encode(ListTodosResponse{
@@ -199,14 +231,15 @@ func handleGetTodoById(w http.ResponseWriter, r *http.Request, handler *queries.
 	}
 	json.NewEncoder(w).Encode(map[string]any{
 		"data": TodoItemResponse{
-			Id:          result.ID,
+			Id:          result.Id,
 			Title:       result.Title,
 			Description: result.Description,
 			Changelog:   result.Changelog,
-			Status:      string(result.Status),
+			Status:      result.Status,
 			CreatedDate: result.CreatedDate,
 			UpdatedDate: result.UpdatedDate,
-			Tickets:     ticketResponses(result.Tickets),
+			Tickets:     readModelTicketResponses(result.Tickets),
+			Subtasks:    readModelSubtaskResponses(result.Subtasks),
 		},
 	})
 }
@@ -222,6 +255,9 @@ func handleUpdateTodoInfo(w http.ResponseWriter, r *http.Request, handler *comma
 	}
 	if body.Tickets != nil {
 		input.Tickets = newTickets(*body.Tickets)
+	}
+	if body.Subtasks != nil {
+		input.Subtasks = newSubtasks(*body.Subtasks)
 	}
 	result, err := handler.Handle(r.Context(), &input)
 	w.Header().Set("content-type", "application/json")
@@ -239,8 +275,59 @@ func handleUpdateTodoInfo(w http.ResponseWriter, r *http.Request, handler *comma
 			Changelog:   result.Changelog,
 			UpdatedDate: result.UpdatedDate,
 			Tickets:     ticketResponses(result.Tickets),
+			Subtasks:    subtaskResponses(result.Subtasks),
 		},
 	})
+}
+
+func newSubtasks(subtasks []SubtaskDto) []domains.NewSubtask {
+	mapped := make([]domains.NewSubtask, 0, len(subtasks))
+	for _, subtask := range subtasks {
+		mapped = append(mapped, domains.NewSubtask{
+			Id:     subtask.Id,
+			Title:  subtask.Title,
+			Status: subtask.Status,
+		})
+	}
+	return mapped
+}
+
+func readModelSubtaskResponses(subtasks []interfaces.SubtaskReadModel) []SubtaskResponse {
+	mapped := make([]SubtaskResponse, 0, len(subtasks))
+	for _, subtask := range subtasks {
+		mapped = append(mapped, SubtaskResponse{
+			Id:     subtask.Id,
+			Title:  subtask.Title,
+			Status: subtask.Status,
+		})
+	}
+	return mapped
+}
+
+func readModelTicketResponses(tickets []interfaces.TicketReadModel) []TicketResponse {
+	mapped := make([]TicketResponse, 0, len(tickets))
+	for _, ticket := range tickets {
+		mapped = append(mapped, TicketResponse{
+			Id:     ticket.Id,
+			Source: ticket.Source,
+			Title:  ticket.Title,
+			Type:   ticket.Type,
+			Link:   ticket.Link,
+		})
+	}
+	return mapped
+}
+
+func subtaskResponses(subtasks []domains.Subtask) []SubtaskResponse {
+	mapped := make([]SubtaskResponse, 0, len(subtasks))
+	for _, subtask := range subtasks {
+		mapped = append(mapped, SubtaskResponse{
+			Id:     subtask.Id,
+			Title:  subtask.Title,
+			Status: string(subtask.Status),
+		})
+	}
+	return mapped
 }
 
 func newTickets(tickets []TicketDto) []domains.NewTicket {
@@ -298,6 +385,39 @@ func handleDeleteTickets(w http.ResponseWriter, r *http.Request, handler *comman
 			CreatedDate: result.CreatedDate,
 			UpdatedDate: result.UpdatedDate,
 			Tickets:     ticketResponses(result.Tickets),
+			Subtasks:    subtaskResponses(result.Subtasks),
+		},
+	})
+}
+
+func handleRemoveSubtasks(w http.ResponseWriter, r *http.Request, handler *commands.RemoveSubtasksHandler) {
+	body := r.Context().Value("body").(RemoveSubtasksDto)
+	ids := make([]string, 0, len(body.Subtasks))
+	for _, subtask := range body.Subtasks {
+		ids = append(ids, subtask.Id)
+	}
+	result, err := handler.Handle(r.Context(), &commands.RemoveSubtasks{
+		ID:       chi.URLParam(r, "id"),
+		Subtasks: ids,
+	})
+	w.Header().Set("content-type", "application/json")
+	if err != nil {
+		httpStatus, body := serializeError(err)
+		w.WriteHeader(httpStatus)
+		json.NewEncoder(w).Encode(body)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"data": TodoItemResponse{
+			Id:          result.ID,
+			Title:       result.Title,
+			Description: result.Description,
+			Changelog:   result.Changelog,
+			Status:      string(result.Status),
+			CreatedDate: result.CreatedDate,
+			UpdatedDate: result.UpdatedDate,
+			Tickets:     ticketResponses(result.Tickets),
+			Subtasks:    subtaskResponses(result.Subtasks),
 		},
 	})
 }
@@ -324,6 +444,21 @@ func serializeError(err error) (http_status int, body map[string]any) {
 			"error": map[string]string{
 				"code":    code,
 				"message": message,
+			},
+		}
+	}
+	var missingSubtasks domains.SubtaskNotFoundError
+	if errors.As(err, &missingSubtasks) {
+		code, message := missingSubtasks.Get()
+		missingIds := missingSubtasks.MissingIds
+		if missingIds == nil {
+			missingIds = []string{}
+		}
+		return http.StatusBadRequest, map[string]any{
+			"error": map[string]any{
+				"code":        code,
+				"message":     message,
+				"missing_ids": missingIds,
 			},
 		}
 	}

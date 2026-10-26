@@ -21,6 +21,15 @@ body:
           "type": "BUG",
           "link": "https://your-domain.atlassian.net/browse/PROJ-1234"
         }
+      ],
+      "subtasks": [
+        {
+          "title": "Outline the pages"
+        },
+        {
+          "title": "Draft the API section",
+          "status": "IN_PROGRESS"
+        }
       ]
     }
 examples: './.resources/create todo.resources/examples'
@@ -42,5 +51,12 @@ scripts:
             link: 'https://your-domain.atlassian.net/browse/PROJ-1234'
           }
         ]);
+        pm.expect(body.data.subtasks).to.have.lengthOf(2);
+        pm.expect(body.data.subtasks[0].title).to.eql('Outline the pages');
+        pm.expect(body.data.subtasks[0].status).to.eql('NOT_STARTED');
+        pm.expect(body.data.subtasks[1].title).to.eql('Draft the API section');
+        pm.expect(body.data.subtasks[1].status).to.eql('IN_PROGRESS');
         pm.collectionVariables.set('todo_id', body.data.id);
+        pm.collectionVariables.set('subtask_id', body.data.subtasks[0].id);
+        pm.collectionVariables.set('subtask_id_2', body.data.subtasks[1].id);
       });

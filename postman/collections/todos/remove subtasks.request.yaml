@@ -1,0 +1,43 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/todos/:id/removeSubtasks'
+order: 3600
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{todo_id}}'
+    description: Todo id returned by POST /todos.
+body:
+  type: json
+  content: |-
+    {
+      "subtasks": [
+        {
+          "id": "{{subtask_id_3}}"
+        }
+      ]
+    }
+examples: './.resources/remove subtasks.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('removes the listed subtasks and returns the todo', function () {
+        pm.response.to.have.status(200);
+        const body = pm.response.json();
+        pm.expect(body.data.id).to.eql(pm.collectionVariables.get('todo_id'));
+        pm.expect(body.data.subtasks).to.eql([
+          {
+            id: pm.collectionVariables.get('subtask_id'),
+            title: 'Outline the sections',
+            status: 'NOT_STARTED'
+          },
+          {
+            id: pm.collectionVariables.get('subtask_id_2'),
+            title: 'Draft the API section',
+            status: 'IN_PROGRESS'
+          }
+        ]);
+      });

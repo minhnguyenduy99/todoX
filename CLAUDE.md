@@ -20,7 +20,7 @@ Each bounded context lives under `internal/<context>/` and is split the same way
 
 - `domains` — aggregates, value objects, invariants, and domain errors. Construct aggregates with factory functions (`CreateNew`). Change them through methods on the aggregate (`UpdateInfo`, `UpdateStatus`, `AddTicket`). This package does not import HTTP, SQL, or chi.
 - `commands` — write use cases. One file per use case, with the command struct, result struct, and handler (`CreateTodo`, `CreateTodoResult`, `CreateTodoHandler`).
-- `queries` — read use cases, same shape as commands (`ListTodos`, `GetTodoById`). Queries use the read model, not the write repository.
+- `queries` — read use cases, one file per query (`ListTodos`, `GetTodoById`). Queries use the read model, not the write repository, and return `TodoReadModel` instead of a second copy of that struct. Do not map read models into domain types, and do not add mapper files beside the query files.
 - `interfaces` — application ports. Writes go through `ITodoRepository`. Reads go through `ITodoReadModel` and its `TodoReadModel` DTO.
 - `ports` — driving adapters. Chi routes, request DTOs, response mapping, and HTTP error serialization. `Setup` builds the Postgres adapter; `Register` wires handlers and is what tests call.
 - `adapters` — driven adapters. `PostgresTodoRepository` implements both `ITodoRepository` and `ITodoReadModel`. `InMemRepository` is the in-memory stand-in used by HTTP tests. SQL and column mapping stay here.
@@ -41,7 +41,7 @@ Patterns to follow:
 - HTTP input is a DTO with `validate` tags. Wrap the route in `infras.ValidateMiddleware[T]("BODY")` or `("QUERY")`. The middleware stores the parsed value on the request context as `"body"` or `"query"`. Handlers map that DTO into a command or query, call `Handle`, then map the result to a response struct. Do not put domain rules in the HTTP layer.
 - Domain errors are structs in `domains` that implement `shared.BaseDomainError`: `Get() (code, message)` and `Error()`. `ports.serializeError` maps `TodoNotFoundError` to 404, any other `BaseDomainError` to 400, and anything else to 500 with code `UNKNOWN_ERROR`.
 - Repository, read-model, and several domain helpers return `(error, value)`, with the error first. Match that order when adding methods on those types.
-- Source files are kebab-case, one use case per file (`create-todo.go`, `get-by-id.go`). Interface files end in `.interface.go`.
+- Source files are kebab-case, one use case per file (`create-todo.go`, `get-by-id.go`). A folder of use cases does not also hold shared helpers for those use cases. Interface files end in `.interface.go`.
 
 # Important rules
 

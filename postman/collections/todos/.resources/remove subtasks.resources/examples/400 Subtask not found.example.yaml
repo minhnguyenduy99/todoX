@@ -1,0 +1,24 @@
+$kind: http-example
+name: 400 Subtask not found
+request:
+  url: '{{base_url}}/todos/:id/removeSubtasks'
+  method: POST
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    - key: content-type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "SUBTASK_NOT_FOUND",
+          "message": "Subtasks not found",
+          "missing_ids": [
+            "00000000-0000-4000-8000-000000000000"
+          ]
+        }
+      }
+order: 2000

@@ -1,0 +1,19 @@
+$kind: http-example
+name: 400 Missing id
+request:
+  url: '{{base_url}}/todos/:id/removeSubtasks'
+  method: POST
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    - key: content-type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": "validation_failed",
+        "message": "id required"
+      }
+order: 3000

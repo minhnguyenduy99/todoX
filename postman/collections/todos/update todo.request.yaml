@@ -31,6 +31,16 @@ body:
           "type": "FEATURE",
           "link": "https://github.com/acme/app/issues/88"
         }
+      ],
+      "subtasks": [
+        {
+          "id": "{{subtask_id}}",
+          "title": "Outline the sections"
+        },
+        {
+          "title": "Review the draft",
+          "status": "COMPLETED"
+        }
       ]
     }
 examples: './.resources/update todo.resources/examples'
@@ -38,12 +48,24 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      pm.test('updates the todo and replaces its tickets', function () {
+      pm.test('updates the todo, its tickets, and its subtasks', function () {
         pm.response.to.have.status(200);
         const body = pm.response.json();
         pm.expect(body.data.id).to.eql(pm.collectionVariables.get('todo_id'));
         pm.expect(body.data.title).to.eql('Write the docs');
         pm.expect(body.data.changelog).to.eql('renamed the task');
+        pm.expect(body.data.subtasks).to.have.lengthOf(3);
+        pm.expect(body.data.subtasks[0].id).to.eql(pm.collectionVariables.get('subtask_id'));
+        pm.expect(body.data.subtasks[0].title).to.eql('Outline the sections');
+        pm.expect(body.data.subtasks[0].status).to.eql('NOT_STARTED');
+        pm.expect(body.data.subtasks[1]).to.eql({
+          id: pm.collectionVariables.get('subtask_id_2'),
+          title: 'Draft the API section',
+          status: 'IN_PROGRESS'
+        });
+        pm.expect(body.data.subtasks[2].title).to.eql('Review the draft');
+        pm.expect(body.data.subtasks[2].status).to.eql('COMPLETED');
+        pm.collectionVariables.set('subtask_id_3', body.data.subtasks[2].id);
         pm.expect(body.data.tickets).to.eql([
           {
             id: 'PROJ-1234',

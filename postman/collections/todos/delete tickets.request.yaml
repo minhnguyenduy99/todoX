@@ -38,4 +38,21 @@ scripts:
             link: 'https://your-domain.atlassian.net/browse/PROJ-1234'
           }
         ]);
+        pm.expect(body.data.subtasks).to.eql([
+          {
+            id: pm.collectionVariables.get('subtask_id'),
+            title: 'Outline the sections',
+            status: 'NOT_STARTED'
+          },
+          {
+            id: pm.collectionVariables.get('subtask_id_2'),
+            title: 'Draft the API section',
+            status: 'IN_PROGRESS'
+          },
+          {
+            id: pm.collectionVariables.get('subtask_id_3'),
+            title: 'Review the draft',
+            status: 'COMPLETED'
+          }
+        ]);
       });

@@ -28,6 +28,54 @@ func (e InvalidTicketTypeError) Error() string {
 	return message
 }
 
+type InvalidSubtaskIdError struct{}
+
+func (e InvalidSubtaskIdError) Get() (string, string) {
+	return "INVALID_SUBTASK_ID", "Invalid subtask id"
+}
+
+func (e InvalidSubtaskIdError) Error() string {
+	_, message := e.Get()
+	return message
+}
+
+type InvalidSubtaskTitleError struct{}
+
+func (e InvalidSubtaskTitleError) Get() (string, string) {
+	return "INVALID_SUBTASK_TITLE", "Invalid subtask title"
+}
+
+func (e InvalidSubtaskTitleError) Error() string {
+	_, message := e.Get()
+	return message
+}
+
+type InvalidSubtaskStatusError struct {
+	Status string
+}
+
+func (e InvalidSubtaskStatusError) Get() (string, string) {
+	return "INVALID_SUBTASK_STATUS", fmt.Sprintf("Invalid subtask status: %s", e.Status)
+}
+
+func (e InvalidSubtaskStatusError) Error() string {
+	_, message := e.Get()
+	return message
+}
+
+type SubtaskNotFoundError struct {
+	MissingIds []string
+}
+
+func (e SubtaskNotFoundError) Get() (string, string) {
+	return "SUBTASK_NOT_FOUND", "Subtasks not found"
+}
+
+func (e SubtaskNotFoundError) Error() string {
+	_, message := e.Get()
+	return message
+}
+
 type TodoNotFoundError struct {
 	ID string
 }

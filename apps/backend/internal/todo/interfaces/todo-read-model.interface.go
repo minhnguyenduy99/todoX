@@ -10,6 +10,12 @@ type TicketReadModel struct {
 	Link   string
 }
 
+type SubtaskReadModel struct {
+	Id     string
+	Title  string
+	Status string
+}
+
 type TodoReadModel struct {
 	Id          string
 	Title       string
@@ -19,6 +25,7 @@ type TodoReadModel struct {
 	CreatedDate int64
 	UpdatedDate int64
 	Tickets     []TicketReadModel
+	Subtasks    []SubtaskReadModel
 }
 
 type ITodoReadModel interface {

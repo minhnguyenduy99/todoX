@@ -13,6 +13,7 @@ type UpdateTodoInfo struct {
 	Description string
 	Changelog   string
 	Tickets     []domains.NewTicket
+	Subtasks    []domains.NewSubtask
 }
 
 type UpdateTodoInfoResult struct {
@@ -22,6 +23,7 @@ type UpdateTodoInfoResult struct {
 	Changelog   string
 	UpdatedDate int64
 	Tickets     []domains.Ticket
+	Subtasks    []domains.Subtask
 }
 
 type UpdateTodoInfoHandler struct {
@@ -35,6 +37,7 @@ func (h *UpdateTodoInfoHandler) Handle(ctx context.Context, cmd *UpdateTodoInfo)
 			Description: cmd.Description,
 			Changelog:   cmd.Changelog,
 			Tickets:     cmd.Tickets,
+			Subtasks:    cmd.Subtasks,
 		})
 		if updateError != nil {
 			return updateError, nil
@@ -53,5 +56,6 @@ func (h *UpdateTodoInfoHandler) Handle(ctx context.Context, cmd *UpdateTodoInfo)
 		Changelog:   updatedTodoItem.Changelog,
 		UpdatedDate: updatedTodoItem.UpdatedDate,
 		Tickets:     updatedTodoItem.Tickets,
+		Subtasks:    updatedTodoItem.Subtasks,
 	}, nil
 }

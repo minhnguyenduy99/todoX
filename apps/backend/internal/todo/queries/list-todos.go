@@ -3,7 +3,6 @@ package queries
 import (
 	"context"
 
-	"todox-backend/internal/todo/domains"
 	"todox-backend/internal/todo/interfaces"
 )
 
@@ -11,20 +10,9 @@ type ListTodos struct {
 	Status string
 }
 
-type ListTodosItem struct {
-	ID          string
-	Title       string
-	Description string
-	Changelog   string
-	Status      domains.TodoStatus
-	CreatedDate int64
-	UpdatedDate int64
-	Tickets     []domains.Ticket
-}
-
 type ListTodosResult struct {
 	TotalCount int
-	Items      []ListTodosItem
+	Items      []interfaces.TodoReadModel
 }
 
 type ListTodosHandler struct {
@@ -42,22 +30,8 @@ func (h *ListTodosHandler) Handle(ctx context.Context, query *ListTodos) (ListTo
 		return ListTodosResult{}, err
 	}
 
-	items := make([]ListTodosItem, 0, len(todos))
-	for _, todo := range todos {
-		items = append(items, ListTodosItem{
-			ID:          todo.Id,
-			Title:       todo.Title,
-			Description: todo.Description,
-			Changelog:   todo.Changelog,
-			Status:      domains.TodoStatus(todo.Status),
-			CreatedDate: todo.CreatedDate,
-			UpdatedDate: todo.UpdatedDate,
-			Tickets:     ticketsFromReadModel(todo.Tickets),
-		})
-	}
-
 	return ListTodosResult{
-		TotalCount: len(items),
-		Items:      items,
+		TotalCount: len(todos),
+		Items:      todos,
 	}, nil
 }
