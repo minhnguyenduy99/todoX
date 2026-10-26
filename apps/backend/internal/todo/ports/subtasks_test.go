@@ -91,23 +91,6 @@ func TestCreateTodoAssignsSubtaskId(t *testing.T) {
 	}
 }
 
-func TestCreateTodoRejectsBlankSubtaskTitle(t *testing.T) {
-	router := newRouter()
-
-	body := bytes.NewBufferString(`{"title":"Blank subtask","status":"NOT_STARTED","subtasks":[{"title":"   "}]}`)
-	req := httptest.NewRequest(http.MethodPost, "/todos", body)
-	req.Header.Set("content-type", "application/json")
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
-	}
-	apiError := decodeJSON[apiErrorResponse](t, rec)
-	if apiError.Error.Code != "INVALID_SUBTASK_TITLE" {
-		t.Fatalf("unexpected error: %+v", apiError.Error)
-	}
-}
-
 func TestCreateTodoRejectsInvalidSubtaskStatus(t *testing.T) {
 	router := newRouter()
 

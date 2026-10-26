@@ -61,9 +61,7 @@ func (t *Todo) UpdateInfo(updatedInfo UpdatedTodoInfo) shared.BaseDomainError {
 	}
 	for _, subtask := range updatedInfo.Subtasks {
 		if subtask.Id == "" {
-			if err := t.createSubtask(subtask); err != nil {
-				return err
-			}
+			t.createSubtask(subtask)
 			continue
 		}
 		var matchedSubtask *Subtask
@@ -104,9 +102,7 @@ func CreateNew(todo NewTodo) (shared.BaseDomainError, *Todo) {
 		return err, nil
 	}
 	for _, subtask := range todo.Subtasks {
-		if err := created.createSubtask(subtask); err != nil {
-			return err, nil
-		}
+		created.createSubtask(subtask)
 	}
 	return nil, created
 }
@@ -139,34 +135,8 @@ func (t *Todo) RemoveSubtasks(ids []string) shared.BaseDomainError {
 	return nil
 }
 
-func (t *Todo) createSubtask(data NewSubtask) shared.BaseDomainError {
-	err, subtask := newSubtask(data)
-	if err != nil {
-		return err
-	}
-	t.Subtasks = append(t.Subtasks, subtask)
-	return nil
-}
-
-func (t *Todo) updateSubtask(data NewSubtask) shared.BaseDomainError {
-	err, subtask := parseSubtask(data)
-	if err != nil {
-		return err
-	}
-	if subtask.Id == "" {
-		return InvalidSubtaskIdError{}
-	}
-	for i := range t.Subtasks {
-		if t.Subtasks[i].Id != subtask.Id {
-			continue
-		}
-		t.Subtasks[i].Title = subtask.Title
-		if data.Status != nil {
-			t.Subtasks[i].Status = subtask.Status
-		}
-		return nil
-	}
-	return SubtaskNotFoundError{MissingIds: []string{subtask.Id}}
+func (t *Todo) createSubtask(data NewSubtask) {
+	t.Subtasks = append(t.Subtasks, newSubtask(data))
 }
 
 func ParseTodoStatus(status string) (TodoStatus, error) {

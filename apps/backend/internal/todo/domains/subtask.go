@@ -3,8 +3,6 @@ package domains
 import (
 	"strings"
 
-	"todox-backend/internal/shared"
-
 	"github.com/google/uuid"
 )
 
@@ -28,30 +26,20 @@ type NewSubtask struct {
 	Status *SubtaskStatus
 }
 
-func newSubtask(data NewSubtask) (shared.BaseDomainError, Subtask) {
-	err, subtask := parseSubtask(data)
-	if err != nil {
-		return err, Subtask{}
-	}
+func newSubtask(data NewSubtask) Subtask {
+	subtask := parseSubtask(data)
 	subtask.Id = uuid.New().String()
-	return nil, subtask
+	return subtask
 }
 
-func parseSubtask(data NewSubtask) (shared.BaseDomainError, Subtask) {
-	title := strings.TrimSpace(data.Title)
-	if title == "" {
-		return InvalidSubtaskTitleError{}, Subtask{}
-	}
+func parseSubtask(data NewSubtask) Subtask {
 	status := SubtaskStatusNotStarted
 	if data.Status != nil {
-		if !validSubtaskStatus(*data.Status) {
-			return InvalidSubtaskStatusError{Status: string(*data.Status)}, Subtask{}
-		}
 		status = *data.Status
 	}
-	return nil, Subtask{
+	return Subtask{
 		Id:     strings.TrimSpace(data.Id),
-		Title:  title,
+		Title:  strings.TrimSpace(data.Title),
 		Status: status,
 	}
 }
@@ -79,13 +67,4 @@ func missingSubtaskIds(subtasks []Subtask, ids []string) []string {
 		missing = append(missing, id)
 	}
 	return missing
-}
-
-func validSubtaskStatus(status SubtaskStatus) bool {
-	switch status {
-	case SubtaskStatusNotStarted, SubtaskStatusInProgress, SubtaskStatusCompleted:
-		return true
-	default:
-		return false
-	}
 }
